@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Code quality
+.eslintcache
+.prettiercache
+
+# Test files
+test_*.js
+*_test.js
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+
+# Debug documentation (optional - uncomment if you want to exclude)
+# DEBUG_*.md
+# FIX_*.md
+# SOLUSI_*.md
+

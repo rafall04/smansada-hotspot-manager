@@ -1,0 +1,69 @@
+<div class="sidebar-container">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <a href="/admin/dashboard" class="sidebar-brand">
+        <i class="bi bi-router"></i>
+        <span>Hotspot Manager</span>
+      </a>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-item">
+        <a href="/admin/dashboard" class="sidebar-nav-link <%= typeof currentPage !== 'undefined' && currentPage === 'dashboard' ? 'active' : '' %>">
+          <i class="bi bi-speedometer2"></i>
+          <span>Dashboard</span>
+        </a>
+      </div>
+      <div class="sidebar-nav-item">
+        <a href="/admin/users" class="sidebar-nav-link <%= typeof currentPage !== 'undefined' && currentPage === 'users' ? 'active' : '' %>">
+          <i class="bi bi-people"></i>
+          <span>User Management</span>
+        </a>
+      </div>
+      <div class="sidebar-nav-item">
+        <a href="/admin/settings" class="sidebar-nav-link <%= typeof currentPage !== 'undefined' && currentPage === 'settings' ? 'active' : '' %>">
+          <i class="bi bi-gear"></i>
+          <span>Settings</span>
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar">
+          <i class="bi bi-person-circle"></i>
+        </div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name"><%= session.username %></div>
+          <div class="sidebar-user-role"><%= session.role %></div>
+        </div>
+      </div>
+      <form method="POST" action="/logout" class="d-inline">
+        <button type="submit" class="sidebar-logout">
+          <i class="bi bi-box-arrow-right"></i>
+          <span>Logout</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="main-content">
+    <div class="topbar">
+      <div class="d-flex align-items-center gap-3">
+        <button class="sidebar-toggle" id="sidebarToggle" type="button">
+          <i class="bi bi-list"></i>
+        </button>
+        <h1 class="topbar-title"><%= typeof pageTitle !== 'undefined' ? pageTitle : 'Dashboard' %></h1>
+      </div>
+      <div class="topbar-actions">
+        <div class="d-flex align-items-center gap-2 text-muted">
+          <i class="bi bi-clock"></i>
+          <span id="currentTime"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-wrapper">
+

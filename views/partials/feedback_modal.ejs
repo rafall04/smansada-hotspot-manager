@@ -1,0 +1,104 @@
+<!-- Feedback Toast Modal -->
+<div class="modal fade feedback-toast" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true" data-bs-backdrop="false" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content feedback-toast-content">
+      <div class="modal-body p-3" id="feedbackModalBody">
+        <div class="d-flex align-items-start">
+          <div class="flex-shrink-0 me-3">
+            <i class="bi fs-3" id="feedbackModalIcon"></i>
+          </div>
+          <div class="flex-grow-1">
+            <h6 class="mb-1 fw-semibold" id="feedbackModalTitle"></h6>
+            <p class="mb-0 small" id="feedbackModalMessage"></p>
+          </div>
+          <button type="button" class="btn-close btn-close-sm ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Global function to display feedback modal (Toast-style)
+  function displayFeedbackModal(type, title, message) {
+    const modalElement = document.getElementById('feedbackModal');
+    if (!modalElement) return;
+
+    // Initialize modal with no backdrop and no focus
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+      modal = new bootstrap.Modal(modalElement, {
+        backdrop: false,
+        focus: false,
+        keyboard: false
+      });
+    }
+
+    const content = document.querySelector('.feedback-toast-content');
+    const icon = document.getElementById('feedbackModalIcon');
+    const titleEl = document.getElementById('feedbackModalTitle');
+    const messageEl = document.getElementById('feedbackModalMessage');
+
+    // Remove existing color classes
+    content.classList.remove('border-success', 'border-danger', 'border-warning', 'border-primary');
+    icon.classList.remove('bi-check-circle-fill', 'bi-x-octagon-fill', 'bi-exclamation-triangle-fill', 'bi-info-circle-fill', 'text-success', 'text-danger', 'text-warning', 'text-primary');
+
+    // Set content
+    titleEl.textContent = title || 'Pemberitahuan';
+    messageEl.textContent = message || '';
+
+    // Apply styling based on type
+    if (type === 'success') {
+      content.classList.add('border-success', 'border-start');
+      icon.classList.add('bi-check-circle-fill', 'text-success');
+    } else if (type === 'error') {
+      content.classList.add('border-danger', 'border-start');
+      icon.classList.add('bi-x-octagon-fill', 'text-danger');
+    } else if (type === 'warning') {
+      content.classList.add('border-warning', 'border-start');
+      icon.classList.add('bi-exclamation-triangle-fill', 'text-warning');
+    } else {
+      // Default/info
+      content.classList.add('border-primary', 'border-start');
+      icon.classList.add('bi-info-circle-fill', 'text-primary');
+    }
+
+    // Show modal
+    modal.show();
+
+    // Auto-dismiss after 4 seconds
+    const autoDismissTimer = setTimeout(() => {
+      if (modal && modal._isShown) {
+        modal.hide();
+      }
+    }, 4000);
+
+    // Clear timer if user manually closes the modal
+    modalElement.addEventListener('hidden.bs.modal', function clearTimer() {
+      clearTimeout(autoDismissTimer);
+      modalElement.removeEventListener('hidden.bs.modal', clearTimer);
+    }, { once: true });
+  }
+
+  // Auto-display flash messages on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    <% if (typeof messages !== 'undefined') { %>
+      <% if (messages.success && messages.success.length > 0) { %>
+        <% messages.success.forEach(function(msg) { %>
+          displayFeedbackModal('success', 'Berhasil', '<%= msg %>');
+        <% }); %>
+      <% } %>
+      <% if (messages.error && messages.error.length > 0) { %>
+        <% messages.error.forEach(function(msg) { %>
+          displayFeedbackModal('error', 'Kesalahan', '<%= msg %>');
+        <% }); %>
+      <% } %>
+      <% if (messages.warning && messages.warning.length > 0) { %>
+        <% messages.warning.forEach(function(msg) { %>
+          displayFeedbackModal('warning', 'Peringatan', '<%= msg %>');
+        <% }); %>
+      <% } %>
+    <% } %>
+  });
+</script>
+

@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Package manager
+package-lock.json
+yarn.lock
+
+# Template files (EJS)
+*.ejs
+views/**/*.ejs
+
+# OS files
+.DS_Store
+Thumbs.db
+

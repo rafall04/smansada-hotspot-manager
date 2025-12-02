@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>
+    <%= title %>
+  </title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+</head>
+
+<body>
+  <!-- Standard Bootstrap Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+        <div class="container-fluid">
+      <a class="navbar-brand" href="/admin/dashboard">
+        <i class="bi bi-router"></i> <%= (settings && settings.school_name) || 'Hotspot Manager' %>
+      </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/dashboard">
+              <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="/admin/users">
+              <i class="bi bi-people"></i> Guru & Hotspot
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/admins">
+              <i class="bi bi-shield-check"></i> Admin Accounts
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/settings">
+              <i class="bi bi-gear"></i> Settings
+            </a>
+          </li>
+        </ul>
+        <div class="d-flex align-items-center gap-2">
+          <span class="navbar-text">
+            <i class="bi bi-person-circle"></i> <%= session.username %>
+          </span>
+                    <form method="POST" action="/logout" class="d-inline">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5">
+    <!-- Alerts -->
+        <% if (error) { %>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <%= error %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <% } %>
+        <% if (success) { %>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <%= success %>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <% } %>
+
+        <!-- Add User Form -->
+            <div class="card card-clean mb-4">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">Tambah User Baru</h5>
+                <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal"
+                  data-bs-target="#importModal">
+                  <i class="bi bi-upload"></i> Import Data Massal
+                </button>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/admin/users" id="addUserForm" novalidate>
+                  <!-- User Type -->
+                  <div class="mb-4">
+                    <label class="form-label fw-semibold">Tipe User</label>
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <div class="card border-2" id="userTypeExistingCard">
+                          <div class="card-body">
+                            <div class="form-check">
+                              <input class="form-check-input" type="radio" name="user_type" id="user_type_existing"
+                                value="existing" checked>
+                              <label class="form-check-label fw-medium" for="user_type_existing">
+                                User Sudah Ada di Mikrotik
+                              </label>
+                            </div>
+                            <small class="text-muted d-block mt-2">User hotspot sudah ada, verifikasi Comment ID.</small>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="card border-2" id="userTypeNewCard">
+                          <div class="card-body">
+                            <div class="form-check">
+                              <input class="form-check-input" type="radio" name="user_type" id="user_type_new"
+                                value="new">
+                              <label class="form-check-label fw-medium" for="user_type_new">
+                                User Baru + Buat di Mikrotik
+                              </label>
+                            </div>
+                            <small class="text-muted d-block mt-2">Buat user baru di Mikrotik.</small>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Login Credentials -->
+                  <div class="row mb-3">
+                    <div class="col-md-6">
+                      <label for="username" class="form-label">Username (Login Web) <span class="text-danger">*</span></label>
+                      <input type="text" class="form-control" id="username" name="username" required
+                        maxlength="100" placeholder="Masukkan Username">
+                      <div class="form-text">Username untuk login ke sistem web.</div>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="password" class="form-label">Password (Login Web) <span class="text-muted">(Opsional)</span></label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="password" name="password"
+                          placeholder="Kosongkan untuk menggunakan username sebagai password">
+                        <button type="button" class="btn btn-outline-secondary" id="togglePasswordBtn" title="Tampilkan Password">
+                          <i class="bi bi-eye" id="passwordEyeIcon"></i>
+                        </button>
+                      </div>
+                      <div class="form-text text-muted">Kosongkan jika ingin menggunakan Username sebagai Password.</div>
+                    </div>
+                  </div>
+
+                  <!-- Common Fields -->
+                  <div class="row mb-3">
+                    <div class="col-md-6">
+                      <label for="mikrotik_comment_id" class="form-label">
+                        <i class="bi bi-tag"></i> Comment ID Mikrotik <span class="text-danger">*</span>
+                      </label>
+                      <div class="input-group">
+                        <input type="text" class="form-control" id="mikrotik_comment_id" name="mikrotik_comment_id"
+                          required maxlength="100" placeholder="Masukkan Comment ID">
+                        <button type="button" class="btn btn-outline-info" id="verifyCommentBtn">
+                          <i class="bi bi-check-circle"></i> Verifikasi
+                        </button>
+                      </div>
+                      <div class="form-text text-muted">Ini adalah ID Unik yang akan digunakan sebagai Comment di Mikrotik untuk keperluan identifikasi sistem (User Aktif, Sinkronisasi).</div>
+                      <div id="verifyResult" class="mt-2"></div>
+                    </div>
+                  </div>
+
+                  <!-- New User Fields -->
+                  <div id="newUserFields" class="mb-3 d-none">
+                    <div class="card border bg-light-subtle">
+                      <div class="card-body">
+                        <h6 class="fw-semibold mb-3">Data Hotspot Mikrotik</h6>
+                        <div class="alert alert-info mb-3">
+                          <i class="bi bi-info-circle"></i> <strong>Tip:</strong> Kosongkan bidang Username dan Password Hotspot jika ingin menggunakan Username dan Password Login Web.
+                        </div>
+                        <div class="row">
+                        <div class="col-md-4">
+                            <label for="hotspot_username" class="form-label">Username Hotspot <span
+                                class="text-muted">(Opsional)</span></label>
+                            <input type="text" class="form-control" id="hotspot_username" name="hotspot_username"
+                              maxlength="50" placeholder="Kosongkan untuk menggunakan Username Login Web">
+                            <div class="form-text text-muted">Kosongkan untuk menggunakan Username Login Web.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="hotspot_password" class="form-label">Password Hotspot <span
+                                class="text-muted">(Opsional)</span></label>
+                            <input type="password" class="form-control" id="hotspot_password" name="hotspot_password"
+                              placeholder="Kosongkan untuk menggunakan Password Login Web">
+                            <div class="form-text text-muted">Kosongkan untuk menggunakan Password Login Web.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="hotspot_profile" class="form-label">Profile Hotspot <span
+                                class="text-danger">*</span></label>
+                            <div class="input-group">
+                              <select class="form-select" id="hotspot_profile" name="hotspot_profile" required>
+                                <option value="">-- Pilih Profile --</option>
+                              </select>
+                              <button type="button" class="btn btn-primary" id="loadProfilesBtn">Muat</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                        </div>
+                    </div>
+
+                  <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">
+                      <i class="bi bi-check-circle"></i> Simpan User
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="resetBtn">
+                      <i class="bi bi-arrow-counterclockwise"></i> Reset
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+            <!-- User List -->
+            <div class="card card-clean">
+            <div class="card-header">
+                <h5 class="mb-0 fw-bold">Daftar User</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                        <th class="text-nowrap">ID</th>
+                                <th>Username</th>
+                        <th class="text-nowrap">Password Login</th>
+                        <th class="text-nowrap">Mikrotik Comment ID</th>
+                        <th class="text-nowrap">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                      <% if (users && users.length> 0) { %>
+                        <% users.forEach(user=> { %>
+                          <tr>
+                            <td class="fw-medium">
+                              <%= user.id %>
+                            </td>
+                            <td class="fw-semibold">
+                              <%= user.username %>
+                            </td>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2">
+                                <code class="mb-0" id="password_display_<%= user.id %>">********</code>
+                                <button type="button" class="btn btn-sm btn-outline-info reveal-password-btn"
+                                  data-user-id="<%= user.id %>" title="Tampilkan Password">
+                                  <i class="bi bi-eye" id="eye_icon_<%= user.id %>"></i>
+                                </button>
+                                            </div>
+                                        </td>
+                                        <td>
+                              <code class="text-muted"><%= user.mikrotik_comment_id || '-' %></code>
+                                        </td>
+                                        <td>
+                              <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary edit-user-btn"
+                                  data-user-id="<%= user.id %>" title="Edit User">
+                                  <i class="bi bi-pencil"></i>
+                                                </button>
+                                <% if (user.id !==session.userId) { %>
+                                  <form method="POST" action="/admin/users/<%= user.id %>/delete" class="d-inline"
+                                                          onsubmit="return confirm('Yakin ingin menghapus user ini?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus User">
+                                      <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                <% } %>
+                                            </div>
+                                        </td>
+                                    </tr>
+                          <% }); %>
+                            <% } else { %>
+                              <tr>
+                                <td colspan="5" class="text-center text-muted py-4">Tidak ada user</td>
+                              </tr>
+                              <% } %>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+  </div>
+
+  <!-- Modals (Edit & Import) -->
+  <% if (users && users.length> 0) { %>
+    <% users.forEach(user=> { %>
+      <div class="modal fade" id="editModal<%= user.id %>" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+                                            <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title fw-bold">Edit User: <%= user.username %>
+                                                    </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+            <form method="POST" action="/admin/users/<%= user.id %>" id="editForm<%= user.id %>">
+                                                    <div class="modal-body">
+                                                        <div class="mb-3">
+                  <label class="form-label">Username <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" name="username" value="<%= user.username %>" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                  <label class="form-label">Password Baru</label>
+                  <div class="input-group">
+                    <input type="password" class="form-control" id="edit_password_<%= user.id %>" name="password" 
+                                                                   placeholder="Kosongkan jika tidak diubah">
+                    <button type="button" class="btn btn-outline-secondary" id="edit_togglePasswordBtn_<%= user.id %>" 
+                      title="Tampilkan Password">
+                      <i class="bi bi-eye" id="edit_passwordEyeIcon_<%= user.id %>"></i>
+                    </button>
+                                                            </div>
+                  <div class="form-text">Kosongkan jika tidak ingin mengubah password.</div>
+                                                        </div>
+                                                        <div class="mb-3">
+                  <label class="form-label">
+                    <i class="bi bi-tag"></i> Comment ID Mikrotik <span class="text-danger">*</span>
+                                                            </label>
+                  <div class="input-group">
+                    <input type="text" class="form-control" id="edit_comment_<%= user.id %>" name="mikrotik_comment_id"
+                                                                   value="<%= user.mikrotik_comment_id || '' %>" required>
+                    <button type="button" class="btn btn-outline-info"
+                      id="edit_verifyCommentBtn_<%= user.id %>">
+                      <i class="bi bi-check-circle"></i> Verifikasi
+                    </button>
+                  </div>
+                  <div class="form-text text-muted">ID Unik yang digunakan sebagai Comment di Mikrotik untuk identifikasi sistem.</div>
+                  <div id="edit_verifyResult_<%= user.id %>" class="mt-2"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                                                            <i class="bi bi-x-circle"></i> Batal
+                                                        </button>
+                                                        <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-check-circle"></i> Simpan Perubahan
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+      <% }); %>
+        <% } %>
+
+          <!-- Import Modal -->
+          <div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title fw-bold">Import Data User</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                <form method="POST" action="/admin/users/import" enctype="multipart/form-data">
+                  <div class="modal-body">
+                    <div class="alert alert-info">
+                      Format CSV: username, password, role, mikrotik_comment_id
+                      <a href="/downloads/Template.csv" class="alert-link">Download Template</a>
+                                        </div>
+                    <input type="file" class="form-control" name="file" accept=".csv,.xlsx" required>
+                                    </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                      <i class="bi bi-x-circle"></i> Batal
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                      <i class="bi bi-upload"></i> Import
+                    </button>
+                </div>
+                </form>
+            </div>
+        </div>
+          </div>
+
+    <footer class="mt-5 py-3 text-center text-muted small border-top">
+      &copy; RAF 2025 <%= (settings && settings.school_name) || 'Hotspot Manager' %>. Built with ❤️.
+    </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+            (function () {
+              'use strict';
+
+              const UserManagement = {
+                modalInstances: {},
+
+                init: function () {
+                  this.attachEventListeners();
+                  this.initializeFormFields();
+                },
+
+                attachEventListeners: function () {
+                  const self = this;
+                  const addForm = document.getElementById('addUserForm');
+                  const resetBtn = document.getElementById('resetBtn');
+                  const verifyBtn = document.getElementById('verifyCommentBtn');
+                  const loadProfilesBtn = document.getElementById('loadProfilesBtn');
+                  const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+                  const userTypeRadios = document.querySelectorAll('input[name="user_type"]');
+
+                  if (addForm) {
+                    addForm.addEventListener('submit', this.handleAddFormSubmit.bind(this));
+                  }
+
+                  if (resetBtn) {
+                    resetBtn.addEventListener('click', this.resetForm.bind(this));
+                  }
+
+                  if (verifyBtn) {
+                    verifyBtn.addEventListener('click', this.verifyCommentId.bind(this));
+                  }
+
+                  if (loadProfilesBtn) {
+                    loadProfilesBtn.addEventListener('click', this.loadProfiles.bind(this));
+                  }
+
+                  if (togglePasswordBtn) {
+                    togglePasswordBtn.addEventListener('click', this.togglePasswordVisibility.bind(this, 'password', 'passwordEyeIcon'));
+                  }
+
+                  // Auto-populate username from Comment ID field
+                  const commentIdField = document.getElementById('mikrotik_comment_id');
+                  const usernameField = document.getElementById('username');
+                  if (commentIdField && usernameField) {
+                    commentIdField.addEventListener('input', function() {
+                      if (!usernameField.value || usernameField.value === commentIdField.value) {
+                        usernameField.value = commentIdField.value;
+                      }
+                    });
+                  }
+
+                  userTypeRadios.forEach((radio) => {
+                    radio.addEventListener('change', this.toggleUserTypeFields.bind(this));
+                  });
+
+                  // Make entire card clickable for user type selection
+                  const existingCard = document.getElementById('userTypeExistingCard');
+                  const newCard = document.getElementById('userTypeNewCard');
+                  const existingRadio = document.getElementById('user_type_existing');
+                  const newRadio = document.getElementById('user_type_new');
+
+                  if (existingCard && existingRadio) {
+                    existingCard.addEventListener('click', function(e) {
+                      // Don't trigger if clicking directly on the radio or label
+                      if (e.target.closest('.form-check-input') || e.target.closest('.form-check-label')) {
+                        return;
+                      }
+                      e.preventDefault();
+                      existingRadio.checked = true;
+                      existingRadio.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                  }
+
+                  if (newCard && newRadio) {
+                    newCard.addEventListener('click', function(e) {
+                      // Don't trigger if clicking directly on the radio or label
+                      if (e.target.closest('.form-check-input') || e.target.closest('.form-check-label')) {
+                        return;
+                      }
+                      e.preventDefault();
+                      newRadio.checked = true;
+                      newRadio.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                  }
+
+                  document.addEventListener('click', function (e) {
+                    if (e.target.closest('.reveal-password-btn')) {
+                      const btn = e.target.closest('.reveal-password-btn');
+                      const userId = btn.getAttribute('data-user-id');
+                      if (userId) {
+                        self.revealPassword(parseInt(userId));
+                      }
+                    }
+
+                    if (e.target.closest('.edit-user-btn')) {
+                      const btn = e.target.closest('.edit-user-btn');
+                      const userId = btn.getAttribute('data-user-id');
+                      if (userId) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        self.openEditModal(parseInt(userId));
+                      }
+                    }
+
+                    if (e.target.closest('[id^="edit_verifyCommentBtn_"]')) {
+                      const btn = e.target.closest('[id^="edit_verifyCommentBtn_"]');
+                      const userId = btn.id.replace('edit_verifyCommentBtn_', '');
+                      self.verifyEditCommentId(parseInt(userId));
+                    }
+
+                    if (e.target.closest('[id^="edit_togglePasswordBtn_"]')) {
+                      const btn = e.target.closest('[id^="edit_togglePasswordBtn_"]');
+                      const userId = btn.id.replace('edit_togglePasswordBtn_', '');
+                      self.togglePasswordVisibility('edit_password_' + userId, 'edit_passwordEyeIcon_' + userId);
+                    }
+                  });
+
+                  document.querySelectorAll('[id^="editForm"]').forEach((form) => {
+                    form.addEventListener('submit', this.handleEditFormSubmit.bind(this, form));
+                  });
+                },
+
+                openEditModal: function (userId) {
+                  const modalId = 'editModal' + userId;
+            const modalElement = document.getElementById(modalId);
+
+                  if (!modalElement) return;
+
+                  if (!this.modalInstances[modalId]) {
+                    this.modalInstances[modalId] = new bootstrap.Modal(modalElement, {
+                      backdrop: true,
+                      keyboard: true,
+                      focus: true
+                    });
+                  }
+
+                  const modalInstance = this.modalInstances[modalId];
+                  modalInstance.show();
+                },
+
+                initializeFormFields: function () {
+                  this.toggleUserTypeFields();
+                  const existingCard = document.getElementById('userTypeExistingCard');
+                  if (existingCard) {
+                    existingCard.classList.add('border-primary');
+                  }
+                },
+
+                toggleUserTypeFields: function () {
+                  const userType = document.querySelector('input[name="user_type"]:checked');
+                  if (!userType) return;
+
+                  const newUserFields = document.getElementById('newUserFields');
+                  const hotspotUsername = document.getElementById('hotspot_username');
+                  const hotspotPassword = document.getElementById('hotspot_password');
+                  const hotspotProfile = document.getElementById('hotspot_profile');
+                  const existingCard = document.getElementById('userTypeExistingCard');
+                  const newCard = document.getElementById('userTypeNewCard');
+
+                  if (userType.value === 'new') {
+                    if (newUserFields) {
+                      newUserFields.classList.remove('d-none');
+                      newUserFields.classList.add('d-block');
+                    }
+                    // Hotspot username and password are optional (will fallback to Web credentials)
+                    if (hotspotUsername) hotspotUsername.required = false;
+                    if (hotspotPassword) hotspotPassword.required = false;
+                    if (hotspotProfile) hotspotProfile.required = true;
+                    if (existingCard) {
+                      existingCard.classList.remove('border-primary');
+                      existingCard.classList.add('border-2');
+                    }
+                    if (newCard) {
+                      newCard.classList.remove('border-2');
+                      newCard.classList.add('border-primary');
+                    }
+                  } else {
+                    if (newUserFields) {
+                      newUserFields.classList.remove('d-block');
+                      newUserFields.classList.add('d-none');
+                    }
+                    // Reset required attributes
+                    if (hotspotUsername) hotspotUsername.required = false;
+                    if (hotspotPassword) hotspotPassword.required = false;
+                    if (hotspotProfile) hotspotProfile.required = false;
+                    if (existingCard) {
+                      existingCard.classList.remove('border-2');
+                      existingCard.classList.add('border-primary');
+                    }
+                    if (newCard) {
+                      newCard.classList.remove('border-primary');
+                      newCard.classList.add('border-2');
+                    }
+                  }
+                },
+
+                handleAddFormSubmit: function (e) {
+                  const form = e.target;
+                  const userType = document.querySelector('input[name="user_type"]:checked');
+
+                  if (userType && userType.value === 'new') {
+                    const hotspotProfile = document.getElementById('hotspot_profile');
+
+                    // Only Profile is required, username and password will fallback to Web credentials
+                    if (!hotspotProfile || !hotspotProfile.value.trim()) {
+                      e.preventDefault();
+                      if (typeof displayFeedbackModal === 'function') {
+                        displayFeedbackModal('error', 'Validasi Gagal', 'Profile Hotspot harus dipilih');
+                      } else {
+                        alert('Profile Hotspot harus dipilih');
+                      }
+                      hotspotProfile?.focus();
+                      return false;
+                    }
+                  }
+            return true;
+                },
+
+                handleEditFormSubmit: async function (form, e) {
+                  e.preventDefault();
+                  if (form.dataset.submitting === 'true') return false;
+                  form.dataset.submitting = 'true';
+
+                  const formData = new FormData(form);
+                  const formObject = {};
+                  formData.forEach((value, key) => { formObject[key] = value; });
+
+                  const actionUrl = form.getAttribute('action');
+                  const submitBtn = form.querySelector('button[type="submit"]');
+                  const originalBtnText = submitBtn ? submitBtn.innerHTML : '';
+
+                  if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = 'Menyimpan...';
+                  }
+
+                  try {
+                    const response = await fetch(actionUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json',
+                      },
+                      body: new URLSearchParams(formObject)
+                    });
+
+                    if (response.redirected) {
+                      window.location.href = response.url;
+                      return;
+                    }
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                      window.location.reload();
+                    } else {
+                      if (typeof displayFeedbackModal === 'function') {
+                        displayFeedbackModal('error', 'Gagal Menyimpan', data.message || 'Unknown error');
+                      } else {
+                        alert('Gagal menyimpan: ' + (data.message || 'Unknown error'));
+                      }
+                      form.dataset.submitting = 'false';
+                      if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error:', error);
+                    if (typeof displayFeedbackModal === 'function') {
+                      displayFeedbackModal('error', 'Kesalahan', 'Gagal menyimpan: ' + error.message);
+                    } else {
+                      alert('Gagal menyimpan: ' + error.message);
+                    }
+                    form.dataset.submitting = 'false';
+                    if (submitBtn) {
+                      submitBtn.disabled = false;
+                      submitBtn.innerHTML = originalBtnText;
+                    }
+                  }
+                  return false;
+                },
+
+                async loadProfiles() {
+                  const profileSelect = document.getElementById('hotspot_profile');
+                  const loadBtn = document.getElementById('loadProfilesBtn');
+                  if (!profileSelect || !loadBtn) return;
+
+                  loadBtn.disabled = true;
+                  loadBtn.innerHTML = 'Memuat...';
+
+                  try {
+                    const response = await fetch('/admin/users/profiles');
+                    const data = await response.json();
+
+                    if (data.success && data.profiles) {
+                      profileSelect.innerHTML = '<option value="">-- Pilih Profile --</option>';
+                      data.profiles.forEach((profile) => {
+                        const option = document.createElement('option');
+                        option.value = profile.name || profile;
+                        option.textContent = profile.name || profile;
+                        profileSelect.appendChild(option);
+                      });
+                      loadBtn.innerHTML = 'Dimuat';
+                    } else {
+                      if (typeof displayFeedbackModal === 'function') {
+                        displayFeedbackModal('error', 'Gagal Memuat', 'Gagal memuat profile');
+                      } else {
+                        alert('Gagal memuat profile');
+                      }
+                      loadBtn.innerHTML = 'Muat';
+                    }
+                  } catch (error) {
+                    if (typeof displayFeedbackModal === 'function') {
+                      displayFeedbackModal('error', 'Kesalahan', 'Error: ' + error.message);
+                    } else {
+                      alert('Error: ' + error.message);
+                    }
+                    loadBtn.innerHTML = 'Muat';
+                  } finally {
+                    loadBtn.disabled = false;
+                  }
+                },
+
+                async verifyCommentId() {
+                  const commentIdInput = document.getElementById('mikrotik_comment_id');
+                  const verifyResult = document.getElementById('verifyResult');
+                  if (!commentIdInput || !verifyResult) return;
+
+                  const commentId = commentIdInput.value.trim();
+                  if (!commentId) {
+                    verifyResult.innerHTML = '<div class="text-warning">Masukkan Comment ID</div>';
+                    return;
+                  }
+
+                  // Get selected user_type from radio buttons
+                  const userTypeRadio = document.querySelector('input[name="user_type"]:checked');
+                  const userType = userTypeRadio ? userTypeRadio.value : null;
+
+                  verifyResult.innerHTML = '<div class="text-info">Memverifikasi...</div>';
+
+                  try {
+                    const response = await fetch('/admin/users/verify-comment', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        comment_id: commentId,
+                        user_type: userType
+                      }),
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                      if (userType === 'existing') {
+                        verifyResult.innerHTML = '<div class="text-success">✓ ' + data.message + (data.username ? ' (User: ' + data.username + ')' : '') + '</div>';
+                      } else if (userType === 'new') {
+                        verifyResult.innerHTML = '<div class="text-success">✓ ' + data.message + '</div>';
+                      } else {
+                        // Fallback for old behavior
+                        if (data.exists) {
+                          verifyResult.innerHTML = '<div class="text-success">Ditemukan: ' + (data.username || 'N/A') + '</div>';
+                        } else {
+                          verifyResult.innerHTML = '<div class="text-danger">Tidak ditemukan</div>';
+                        }
+                      }
+                    } else {
+                      verifyResult.innerHTML = '<div class="text-danger">✗ ' + data.message + '</div>';
+                    }
+                  } catch (error) {
+                    verifyResult.innerHTML = '<div class="text-danger">Error: ' + error.message + '</div>';
+                  }
+                },
+
+                async verifyEditCommentId(userId) {
+                  const commentIdInput = document.getElementById('edit_comment_' + userId);
+                  const verifyResult = document.getElementById('edit_verifyResult_' + userId);
+                  if (!commentIdInput || !verifyResult) return;
+
+                  const commentId = commentIdInput.value.trim();
+                  if (!commentId) {
+                    verifyResult.innerHTML = '<div class="text-warning">Masukkan Comment ID</div>';
+                    return;
+                  }
+
+                  verifyResult.innerHTML = '<div class="text-info">Memverifikasi...</div>';
+
+                  try {
+                    const response = await fetch('/admin/users/verify-comment', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ comment_id: commentId }),
+                    });
+                    const data = await response.json();
+
+                    if (data.success && data.exists) {
+                      verifyResult.innerHTML = '<div class="text-success">Ditemukan: ' + (data.username || 'N/A') + '</div>';
+                    } else {
+                      verifyResult.innerHTML = '<div class="text-danger">Tidak ditemukan</div>';
+                    }
+                  } catch (error) {
+                    verifyResult.innerHTML = '<div class="text-danger">Error: ' + error.message + '</div>';
+                  }
+                },
+
+                async revealPassword(userId) {
+                  const display = document.getElementById('password_display_' + userId);
+                  const icon = document.getElementById('eye_icon_' + userId);
+                  
+                  // Show loading state
+                  if (icon) {
+                    icon.className = 'bi bi-arrow-clockwise spin';
+                  }
+                  if (display) {
+                    display.textContent = 'Memuat...';
+                    display.classList.remove('fw-bold', 'text-success');
+                  }
+
+                  try {
+                    const response = await fetch('/admin/users/reveal-password', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ user_id: userId })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                      if (display) {
+                        display.textContent = data.plain_password;
+                        display.classList.add('fw-bold', 'text-success');
+                      }
+                      if (icon) icon.className = 'bi bi-eye-slash';
+                    } else {
+                      // Reset on error
+                      if (display) {
+                        display.textContent = '********';
+                        display.classList.remove('fw-bold', 'text-success');
+                      }
+                      if (icon) icon.className = 'bi bi-eye';
+                      // Handle specific security restriction message
+                      if (typeof displayFeedbackModal === 'function') {
+                        if (data.message && data.message.includes('Tidak diizinkan melihat sandi sesama akun Admin')) {
+                          displayFeedbackModal('error', 'Aksi Ditolak', data.message);
+                        } else {
+                          displayFeedbackModal('error', 'Gagal', data.message || 'Gagal menampilkan password');
+                        }
+                      } else {
+                        if (data.message && data.message.includes('Tidak diizinkan melihat sandi sesama akun Admin')) {
+                          alert('⚠️ ' + data.message);
+                        } else {
+                          alert(data.message || 'Gagal menampilkan password');
+                        }
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error:', error);
+                    // Reset on error
+                    const display = document.getElementById('password_display_' + userId);
+                    const icon = document.getElementById('eye_icon_' + userId);
+                    if (display) {
+                      display.textContent = '********';
+                      display.classList.remove('fw-bold', 'text-success');
+                    }
+                    if (icon) icon.className = 'bi bi-eye';
+                    
+                    if (typeof displayFeedbackModal === 'function') {
+                      displayFeedbackModal('error', 'Kesalahan', 'Terjadi kesalahan');
+                    } else {
+                      alert('Terjadi kesalahan');
+                    }
+                  }
+                },
+
+                togglePasswordVisibility: function (inputId, iconId) {
+                  const passwordInput = document.getElementById(inputId);
+                  const eyeIcon = document.getElementById(iconId);
+                  
+                  if (!passwordInput || !eyeIcon) return;
+
+                  if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    eyeIcon.classList.remove('bi-eye');
+                    eyeIcon.classList.add('bi-eye-slash');
+                  } else {
+                    passwordInput.type = 'password';
+                    eyeIcon.classList.remove('bi-eye-slash');
+                    eyeIcon.classList.add('bi-eye');
+                  }
+                },
+
+                resetForm: function () {
+                  const form = document.getElementById('addUserForm');
+                  if (form) {
+                    form.reset();
+                    const verifyResult = document.getElementById('verifyResult');
+                    if (verifyResult) verifyResult.innerHTML = '';
+                    const passwordInput = document.getElementById('password');
+                    const eyeIcon = document.getElementById('passwordEyeIcon');
+                    if (passwordInput && eyeIcon) {
+                      passwordInput.type = 'password';
+                      eyeIcon.classList.remove('bi-eye-slash');
+                      eyeIcon.classList.add('bi-eye');
+                    }
+                    this.toggleUserTypeFields();
+                  }
+                }
+              };
+
+              document.addEventListener('DOMContentLoaded', function () {
+                UserManagement.init();
+              });
+            })();
+    </script>
+
+  <%- include('../partials/feedback_modal') %>
+</body>
+
+</html>

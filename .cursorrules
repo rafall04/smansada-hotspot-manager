@@ -1,0 +1,198 @@
+# UI/UX Design Standards (Option D: Clean SaaS & Performance First)
+
+## Design Philosophy
+- **Style:** Clean SaaS, Minimalist, and Professional.
+- **Vibe:** Reliable, Fast, High-Contrast, and crisp.
+- **Primary Method:** Native Bootstrap 5.3+ components with subtle CSS utility overrides.
+- **Performance:** ZERO `backdrop-filter` usage. No heavy CSS animations.
+- **Mobile First:** Touch-friendly targets (min 44px) and fluid layouts.
+
+## Color Palette (CSS Variables)
+- **Background:** - Light: Light Slate (`#f8fafc`).
+  - Dark: Deep Slate (`#0f172a`).
+- **Cards:** - Light: Pure White (`#ffffff`) with subtle border.
+  - Dark: Slate (`#1e293b`) with subtle border.
+- **Primary Accent:** Interbrand Blue (`#2563eb`) or Indigo (`#4f46e5`).
+- **Text:** High contrast for readability on low-end screens.
+
+## Component Rules
+
+1. **Cards (`.card-clean`):**
+   - **No Blur:** Use solid background colors.
+   - **Border:** Thin, subtle border (`1px solid var(--bs-border-color)`).
+   - **Shadow:** Very subtle static shadow (`box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05)`).
+   - **Radius:** Standard `border-radius: 8px` or `12px`.
+
+2. **Buttons:**
+   - **Primary:** Solid color with slight hover darken. No heavy gradients.
+   - **Secondary:** Outline with subtle background hover.
+
+3. **Typography:**
+   - Use system fonts or a performant web font (Inter).
+   - Headings should have tight letter-spacing.
+
+4. **Modals:**
+   - **No Blur Backdrop:** Use a solid semi-transparent black overlay (`rgba(0,0,0,0.5)`).
+   - Centered and clean.
+
+## Coding Constraints (Performance Focus)
+- **Avoid:** `backdrop-filter`, complex CSS `box-shadow` stacks, infinite CSS animations.
+- **Dark Mode:** Use Bootstrap's native `[data-bs-theme="dark"]` implementation.
+- **Responsiveness:** ALWAYS use `.table-responsive` for tables.
+
+---
+
+# Project-Specific Rules
+
+## Technology Stack
+- **Backend:** Node.js with Express.js
+- **Template Engine:** EJS (Embedded JavaScript)
+- **Database:** SQLite (better-sqlite3)
+- **Frontend:** Bootstrap 5.3+ with Bootstrap Icons
+- **API Integration:** Mikrotik RouterOS API
+
+## Code Quality Standards
+
+### JavaScript/Node.js
+1. **Error Handling:**
+   - Always use try-catch blocks for async operations.
+   - Return JSON responses for API endpoints.
+   - Log errors internally, show user-friendly messages externally.
+   - Validation failures must respond with `{ success: false, validationErrors: [...] }` (use `express-validator`).
+
+2. **Response Flow Control (CRITICAL - ERR_HTTP_HEADERS_SENT Prevention):**
+   - **ALWAYS** use `return` immediately after sending any HTTP response (`res.redirect()`, `res.json()`, `res.send()`, `res.status().json()`, etc.).
+   - **Example:** `return res.redirect('/admin/users');` NOT `res.redirect('/admin/users');`
+   - Add guard checks (`if (res.headersSent) return;`) at critical points:
+     - At function entry (if middleware might have sent response)
+     - After validation checks
+     - Before each response call
+     - After async operations (`await`)
+     - In catch blocks before sending error responses
+   - **Pattern:**
+     ```javascript
+     static async someFunction(req, res) {
+       if (res.headersSent) return; // Guard check
+       
+       try {
+         const validationResponse = respondValidationErrors(req, res, '/path');
+         if (validationResponse) {
+           return validationResponse; // MUST return
+         }
+         
+         if (res.headersSent) return; // Guard after validation
+         
+         // ... logic ...
+         
+         if (someCondition) {
+           req.flash('error', 'Message');
+           return res.redirect('/path'); // MUST return
+         }
+         
+         // Success
+         req.flash('success', 'Message');
+         return res.redirect('/path'); // MUST return
+       } catch (error) {
+         if (res.headersSent) return; // Guard in catch
+         req.flash('error', error.message);
+         return res.redirect('/path'); // MUST return
+       }
+     }
+     ```
+   - **Why:** Express.js throws `ERR_HTTP_HEADERS_SENT` if you attempt to send a response after headers have already been sent. This prevents crashes and ensures only one response per request.
+
+3. **Structure:**
+   - MVC Pattern (Models, Views, Controllers).
+   - Services for external APIs (Mikrotik).
+
+4. **Naming:**
+   - `camelCase` for JS variables/functions.
+   - `snake_case` for Database columns.
+
+5. **Comments:**
+   - **Remove unnecessary comments** before committing.
+   - Remove commented-out code (dead code).
+   - Remove debug comments (`// DEBUG`, `// TEST`, `// console.log`, `// REMOVE THIS`).
+   - Remove obvious comments that just repeat what the code does (e.g., `// Set username` above `username = value`).
+   - Remove outdated TODO/FIXME comments that are already resolved or no longer relevant.
+   - **Keep only meaningful comments** that explain:
+     - Complex business logic or non-obvious decisions.
+     - "Why" something is done, not "what" (code should be self-explanatory).
+     - JSDoc comments for public methods/classes.
+   - Use clear, descriptive variable and function names instead of comments.
+   - **Examples:**
+     - ✅ Good: `// Check for legacy mikrotik_comment column for backward compatibility`
+     - ❌ Bad: `// Get user by ID` (code is self-explanatory)
+     - ❌ Bad: `// const user = User.findById(id);` (commented-out code)
+
+### EJS Templates
+1. **Modals (CRITICAL):**
+   - **MUST be placed OUTSIDE table loops.**
+   - Place all modals at the bottom of the file (before scripts).
+   - Use unique IDs (`id="modal<%= user.id %>"`).
+
+2. **Form Integrity (CRITICAL):**
+   - All core input fields (e.g., username, password, NIP, mikrotik_comment_id) in critical forms (Admin/Users, Settings, Guru Dashboard) must be explicitly checked and retained during any refactoring.
+   - **Do NOT remove any form element** unless it is replaced by a functional equivalent.
+   - Before removing or modifying form fields, verify:
+     - The field is used by the backend controller (`req.body.fieldName`).
+     - The field has proper validation rules in `middlewares/validators.js`.
+     - The field is required for the feature to function correctly.
+
+3. **Performance:**
+   - Avoid inline styles.
+   - Minimize inline scripts.
+
+### Database (SQLite)
+1. **Queries:**
+   - Use prepared statements (`db.prepare()`).
+   - Handle constraints (UNIQUE) gracefully.
+
+### CSS/Styling
+1. **Bootstrap 5 Native:**
+   - Rely on Bootstrap utility classes (`p-3`, `mb-4`, `d-flex`) first.
+   - Only write custom CSS in `style.css` for branding/theming, not layout.
+
+2. **Mobile Optimization:**
+   - Font size min 16px (prevents iOS zoom).
+   - Tables wrapped in `.table-responsive`.
+   - Navbar should collapse correctly.
+
+## Code Cleanup Rules
+
+1. **Remove Unnecessary Comments:**
+   - Before committing, remove all commented-out code.
+   - Remove debug comments (`// DEBUG`, `// TEST`, `// REMOVE THIS`, `// console.log`).
+   - Remove obvious comments that don't add value.
+   - Remove outdated TODO/FIXME comments.
+   - Keep only meaningful comments that explain complex business logic or non-obvious decisions.
+
+2. **Comment Guidelines:**
+   - Good: `// Check for legacy mikrotik_comment column for backward compatibility`
+   - Bad: `// Get user by ID` (code is self-explanatory)
+   - Bad: `// const user = User.findById(id);` (commented-out code)
+
+## Best Practices
+- **Security:** Hashed passwords (bcrypt), encrypted router pwd (AES).
+- **Session:** Use persistent store (SQLiteStore).
+- **Testing:** Verify "Edit" buttons on mobile don't flicker (Modal placement rule).
+- **Diagnostics:** The Admin settings page uses `/admin/settings/run-diagnostics`; keep responses structured (connectivity + permissions).
+- **Recent Activity:** `/admin/api/logs` powers the dashboard; filtering & pagination happen client-side via Fetch (do not reintroduce full page reloads).
+- **Validation:** All critical POST routes must include the shared `middlewares/validators` chains (admin users/settings, guru hotspot updates) to protect Mikrotik/API operations.
+
+- [ ] **Development Constraint:** Do not create temporary test files (e.g., `test-admin.js`, `test-feature.js`, `temp_test.js`) during implementation. Use in-memory testing or temporary blocks of code/console logs, removing them before committing.
+
+## Pre-Commit Checklist
+
+Before committing code:
+
+- [ ] Remove all commented-out code
+- [ ] Remove debug comments (`// DEBUG`, `// TEST`, `// console.log`)
+- [ ] Remove obvious comments that don't add value
+- [ ] Remove outdated TODO/FIXME comments
+- [ ] Keep only meaningful comments (explain "why", not "what")
+- [ ] **Verify all response calls have `return` statements** (prevent ERR_HTTP_HEADERS_SENT)
+- [ ] Run `npm run lint` - No errors
+- [ ] Test functionality
+- [ ] Follow naming conventions
+- [ ] Follow security best practices

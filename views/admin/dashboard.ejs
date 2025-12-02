@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="id" data-bs-theme="auto">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Mikrotik Manager">
+  <meta name="description" content="Sistem Manajemen Hotspot Mikrotik">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+  <title><%= title %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+  <link href="/css/style.css" rel="stylesheet">
+</head>
+<body>
+  <!-- Standard Bootstrap Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/admin/dashboard">
+        <i class="bi bi-router"></i> <%= (settings && settings.school_name) || 'Hotspot Manager' %>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="/admin/dashboard">
+              <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/users">
+              <i class="bi bi-people"></i> Guru & Hotspot
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/admins">
+              <i class="bi bi-shield-check"></i> Admin Accounts
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/settings">
+              <i class="bi bi-gear"></i> Settings
+            </a>
+          </li>
+        </ul>
+        <div class="d-flex align-items-center gap-2">
+          <span class="navbar-text">
+            <i class="bi bi-person-circle"></i> <%= session.username %>
+          </span>
+          <form method="POST" action="/logout" class="d-inline">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-box-arrow-right"></i> Logout
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4 mb-5">
+    <% if (error) { %>
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill"></i> <%= error %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <% } %>
+    <% if (success) { %>
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill"></i> <%= success %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    <% } %>
+
+    <!-- Stat Cards Section -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-4 mb-4">
+      <!-- Router Status Card -->
+      <div class="col">
+        <div class="card card-clean">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="icon-wrapper bg-primary-subtle text-primary rounded-3 p-3">
+                <i class="bi bi-router fs-4"></i>
+              </div>
+              <% if (systemResources) { %>
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Online</span>
+              <% } else { %>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">Offline</span>
+              <% } %>
+            </div>
+            <div>
+              <small class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">Router Status</small>
+              <h3 class="mb-0 mt-1 fw-bold"><%= systemResources ? (systemResources['board-name'] || 'N/A') : 'Offline' %></h3>
+              <% if (systemResources) { %>
+                <small class="text-muted d-block mt-2"><%= systemResources.uptime || 'N/A' %></small>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Total Teachers Card -->
+      <div class="col">
+        <div class="card card-clean">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="icon-wrapper bg-success-subtle text-success rounded-3 p-3">
+                <i class="bi bi-people fs-4"></i>
+              </div>
+            </div>
+            <div>
+              <small class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">Total Teachers</small>
+              <h2 class="mb-0 mt-1 fw-bold"><%= totalGuru %></h2>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Connections Card -->
+      <div class="col">
+        <div class="card card-clean">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="icon-wrapper bg-info-subtle text-info rounded-3 p-3">
+                <i class="bi bi-wifi fs-4"></i>
+              </div>
+            </div>
+            <div>
+              <small class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">Live Connections</small>
+              <h2 class="mb-0 mt-1 fw-bold"><%= totalActiveConnections || 0 %></h2>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Health Card -->
+      <div class="col">
+        <div class="card card-clean">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="icon-wrapper bg-warning-subtle text-warning rounded-3 p-3">
+                <i class="bi bi-activity fs-4"></i>
+              </div>
+            </div>
+            <div>
+              <small class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">RAM Usage</small>
+              <% if (systemHealth) { %>
+                <h2 class="mb-0 mt-1 fw-bold"><%= systemHealth.memoryPercent %>%</h2>
+                <small class="text-muted d-block mt-2">
+                  <%= Math.round(systemHealth.usedMemory / 1024 / 1024) %> MB / <%= Math.round(systemHealth.totalMemory / 1024 / 1024) %> MB
+                </small>
+              <% } else { %>
+                <h2 class="mb-0 mt-1 fw-bold text-muted">-</h2>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Monitoring Table -->
+    <div class="card card-clean">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-check"></i> Live Monitoring - Teachers</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th>Teacher Name</th>
+                <th class="text-nowrap">Comment ID (NIP)</th>
+                <th>Status</th>
+                <th class="text-nowrap">Active Devices</th>
+                <th>Uptime</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (usersWithSessions && usersWithSessions.length > 0) { %>
+                <% 
+                  const displayUsers = usersWithSessions.slice(0, 10);
+                  displayUsers.forEach(user => { 
+                %>
+                  <tr>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-person-circle text-primary"></i>
+                        <strong><%= user.username %></strong>
+                      </div>
+                    </td>
+                    <td class="text-nowrap">
+                      <code class="bg-light px-2 py-1 rounded"><%= user.commentId %></code>
+                    </td>
+                    <td>
+                      <% if (user.status === 'online') { %>
+                        <span class="badge bg-success-subtle text-success">
+                          <i class="bi bi-circle-fill"></i> Online
+                        </span>
+                      <% } else { %>
+                        <span class="badge bg-secondary-subtle text-secondary">
+                          <i class="bi bi-circle"></i> Offline
+                        </span>
+                      <% } %>
+                    </td>
+                    <td class="text-nowrap">
+                      <% if (user.activeDevices > 0) { %>
+                        <a href="#" class="activeDeviceCountLink text-decoration-none" 
+                           data-comment-id="<%= user.commentId %>"
+                           title="Klik untuk melihat detail perangkat aktif">
+                          <span class="badge bg-info-subtle text-info">
+                            <%= user.activeDevices %> Device<%= user.activeDevices > 1 ? 's' : '' %>
+                          </span>
+                        </a>
+                      <% } else { %>
+                        <span class="text-muted">-</span>
+                      <% } %>
+                    </td>
+                    <td class="text-nowrap">
+                      <% if (user.status === 'online' && user.uptime !== '0s') { %>
+                        <span class="badge bg-primary-subtle text-primary">
+                          <i class="bi bi-clock"></i> <%= user.uptime %>
+                        </span>
+                      <% } else { %>
+                        <span class="text-muted">-</span>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }); %>
+              <% } else { %>
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">
+                    <i class="bi bi-inbox"></i> Tidak ada data monitoring
+                  </td>
+                </tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top 5 Bandwidth Usage Section -->
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="card card-clean">
+          <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-graph-up"></i> Top 5 Usage (Downloads)</h5>
+          </div>
+          <div class="card-body">
+            <div id="topUsersLoading" class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="text-muted mt-2">Loading bandwidth data...</p>
+            </div>
+            <div id="topUsersContent" style="display: none;">
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Username</th>
+                      <th>Comment</th>
+                      <th class="text-nowrap">Download</th>
+                      <th class="text-nowrap">Upload</th>
+                    </tr>
+                  </thead>
+                  <tbody id="topUsersTableBody">
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div id="topUsersError" style="display: none;" class="text-center text-muted py-4">
+              <i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>
+              <p>Failed to load bandwidth data</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity Section -->
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="card card-clean">
+          <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Activity</h5>
+          </div>
+          <div class="card-body">
+            <form class="row g-3 align-items-end mb-4" id="logFilterForm">
+              <div class="col-md-6">
+                <label for="activitySearch" class="form-label text-muted small text-uppercase fw-semibold">
+                  Pencarian
+                </label>
+                <input type="text" class="form-control" id="activitySearch" name="search"
+                       placeholder="Cari user, detail, atau IP..." value="<%= searchQuery || '' %>">
+              </div>
+              <div class="col-md-4">
+                <label for="activityAction" class="form-label text-muted small text-uppercase fw-semibold">
+                  Tipe Aksi
+                </label>
+                <select class="form-select" id="activityAction" name="action_type">
+                  <option value="">Semua Aksi</option>
+                  <% if (actionOptions && actionOptions.length > 0) { %>
+                    <% actionOptions.forEach(function(action) { %>
+                      <option value="<%= action %>" <%= actionFilter === action ? 'selected' : '' %>><%= action %></option>
+                    <% }) %>
+                  <% } %>
+                </select>
+              </div>
+              <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100">
+                  <i class="bi bi-search"></i> Filter
+                </button>
+                <button type="button" class="btn btn-outline-secondary w-100" id="logResetBtn">
+                  Reset
+                </button>
+              </div>
+            </form>
+            <div class="table-responsive">
+              <table class="table table-borderless table-hover align-middle">
+                <thead>
+                  <tr>
+                    <th class="text-nowrap">Time</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                    <th class="text-nowrap">IP Address</th>
+                  </tr>
+                </thead>
+                <tbody id="logTableBody">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                      <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                      <p class="mb-0 mt-2">Memuat data...</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <nav id="logPagination" class="mt-3"></nav>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row g-3 mt-4">
+      <div class="col-md-4">
+        <a href="/admin/settings" class="btn btn-primary w-100">
+          <i class="bi bi-gear"></i> Router Settings
+        </a>
+      </div>
+      <div class="col-md-4">
+        <a href="/admin/users" class="btn btn-primary w-100">
+          <i class="bi bi-person-plus"></i> Tambah User Baru
+        </a>
+      </div>
+      <div class="col-md-4">
+        <a href="/admin/dashboard" class="btn btn-outline-primary w-100">
+          <i class="bi bi-arrow-clockwise"></i> Refresh Data
+        </a>
+      </div>
+    </div>
+
+    <footer class="mt-5 py-3 text-center text-muted small border-top">
+      &copy; RAF 2025 <%= (settings && settings.school_name) || 'Hotspot Manager' %>. Built with ❤️.
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    (function() {
+      'use strict';
+
+      document.addEventListener('DOMContentLoaded', function() {
+        const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+        popoverTriggerList.map(function(popoverTriggerEl) {
+          return new bootstrap.Popover(popoverTriggerEl);
+        });
+
+        // Load Top Users data asynchronously
+        const topUsersLoading = document.getElementById('topUsersLoading');
+        const topUsersContent = document.getElementById('topUsersContent');
+        const topUsersError = document.getElementById('topUsersError');
+        const topUsersTableBody = document.getElementById('topUsersTableBody');
+
+        if (topUsersLoading && topUsersContent && topUsersTableBody) {
+          fetch('/admin/api/top-users')
+            .then(response => response.json())
+            .then(data => {
+              topUsersLoading.style.display = 'none';
+              if (data.success && data.data && data.data.length > 0) {
+                topUsersTableBody.innerHTML = data.data.map(user => `
+                  <tr>
+                    <td><span class="badge bg-primary-subtle text-primary">#${user.rank}</span></td>
+                    <td><code>${user.username}</code></td>
+                    <td>${user.comment}</td>
+                    <td class="text-nowrap"><strong>${user.download_formatted}</strong></td>
+                    <td class="text-nowrap">${user.upload_formatted}</td>
+                  </tr>
+                `).join('');
+                topUsersContent.style.display = 'block';
+              } else {
+                topUsersTableBody.innerHTML = `
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                      <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                      No bandwidth data available
+                    </td>
+                  </tr>
+                `;
+                topUsersContent.style.display = 'block';
+              }
+            })
+            .catch(error => {
+              console.error('Error loading top users:', error);
+              topUsersLoading.style.display = 'none';
+              topUsersError.style.display = 'block';
+            });
+        }
+      });
+    })();
+  </script>
+  <script>
+    (function() {
+      const logForm = document.getElementById('logFilterForm');
+      const logTableBody = document.getElementById('logTableBody');
+      const logPagination = document.getElementById('logPagination');
+      const logResetBtn = document.getElementById('logResetBtn');
+      if (!logForm || !logTableBody || !logPagination) {
+        return;
+      }
+
+      let currentPage = 1;
+      const limit = 20;
+
+      const renderRows = (logs) => {
+        if (!logs || logs.length === 0) {
+          logTableBody.innerHTML = `
+            <tr>
+              <td colspan="5" class="text-center text-muted py-4">
+                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                Tidak ada aktivitas yang ditemukan
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        logTableBody.innerHTML = logs
+          .map(
+            (log) => `
+              <tr>
+                <td class="text-nowrap"><small class="text-muted">${log.created_at_formatted || '-'}</small></td>
+                <td><strong>${log.username || 'System'}</strong></td>
+                <td>
+                  <span class="badge bg-primary-subtle text-primary">${log.action}</span>
+                </td>
+                <td>${log.details || '-'}</td>
+                <td class="text-nowrap"><code class="text-muted">${log.ip_address || '-'}</code></td>
+              </tr>
+            `
+          )
+          .join('');
+      };
+
+      const renderPagination = (totalPages) => {
+        if (!totalPages || totalPages <= 1) {
+          logPagination.innerHTML = '';
+          return;
+        }
+
+        const maxButtons = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+        let endPage = startPage + maxButtons - 1;
+
+        if (endPage > totalPages) {
+          endPage = totalPages;
+          startPage = Math.max(1, endPage - maxButtons + 1);
+        }
+
+        let html = '<ul class="pagination pagination-sm justify-content-end mb-0">';
+        html += `
+          <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <button class="page-link" type="button" data-page="${currentPage - 1}">Prev</button>
+          </li>
+        `;
+
+        for (let page = startPage; page <= endPage; page++) {
+          html += `
+            <li class="page-item ${page === currentPage ? 'active' : ''}">
+              <button class="page-link" type="button" data-page="${page}">${page}</button>
+            </li>
+          `;
+        }
+
+        html += `
+          <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <button class="page-link" type="button" data-page="${currentPage + 1}">Next</button>
+          </li>
+        `;
+        html += '</ul>';
+
+        logPagination.innerHTML = html;
+      };
+
+      const fetchLogs = async (page = 1) => {
+        const formData = new FormData(logForm);
+        const params = new URLSearchParams();
+        params.set('page', page);
+        params.set('limit', limit);
+
+        const search = formData.get('search');
+        const actionType = formData.get('action_type');
+
+        if (search && search.trim() !== '') {
+          params.set('search', search.trim());
+        }
+        if (actionType) {
+          params.set('action_type', actionType);
+        }
+
+        logTableBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center text-muted py-4">
+              <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+              <p class="mb-0 mt-2">Memuat data...</p>
+            </td>
+          </tr>
+        `;
+        logPagination.innerHTML = '';
+
+        try {
+          const response = await fetch(`/admin/api/logs?${params.toString()}`, {
+            headers: { Accept: 'application/json' }
+          });
+          const data = await response.json();
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Gagal memuat log');
+          }
+
+          currentPage = data.currentPage || page;
+          renderRows(data.logs || []);
+          renderPagination(data.totalPages || 1);
+        } catch (error) {
+          logTableBody.innerHTML = `
+            <tr>
+              <td colspan="5" class="text-center text-danger py-4">
+                ${error.message || 'Gagal memuat data'}
+              </td>
+            </tr>
+          `;
+          logPagination.innerHTML = '';
+        }
+      };
+
+      logForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        fetchLogs(1);
+      });
+
+      if (logPagination) {
+        logPagination.addEventListener('click', (event) => {
+          const button = event.target.closest('[data-page]');
+          if (!button) {
+            return;
+          }
+
+          const targetPage = parseInt(button.getAttribute('data-page'), 10);
+          if (Number.isNaN(targetPage) || targetPage < 1 || targetPage === currentPage) {
+            return;
+          }
+
+          fetchLogs(targetPage);
+        });
+      }
+
+      if (logResetBtn) {
+        logResetBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          logForm.reset();
+          fetchLogs(1);
+        });
+      }
+
+      fetchLogs(1);
+    })();
+  </script>
+  <!-- Live Monitoring Modal -->
+  <div class="modal fade" id="liveMonitoringModal" tabindex="-1" aria-labelledby="liveMonitoringModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold" id="liveMonitoringModalLabel">
+            <i class="bi bi-list-check"></i> Detail Perangkat Aktif
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="sessionTableLoading" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-muted mt-2">Memuat data perangkat aktif...</p>
+          </div>
+          <div id="sessionTableContent" style="display: none;">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th class="text-nowrap">IP Address</th>
+                    <th>Hostname</th>
+                    <th class="text-nowrap">MAC Address</th>
+                    <th class="text-nowrap">Uptime</th>
+                  </tr>
+                </thead>
+                <tbody id="sessionTableBody">
+                  <!-- Dynamic rows will be inserted here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div id="sessionTableEmpty" class="text-center py-4" style="display: none;">
+            <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+            <p class="text-muted">Tidak ada perangkat aktif</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle"></i> Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Live Monitoring Modal Handler
+    (function() {
+      'use strict';
+
+      const liveMonitoringModal = new bootstrap.Modal(document.getElementById('liveMonitoringModal'));
+      const sessionTableBody = document.getElementById('sessionTableBody');
+      const sessionTableLoading = document.getElementById('sessionTableLoading');
+      const sessionTableContent = document.getElementById('sessionTableContent');
+      const sessionTableEmpty = document.getElementById('sessionTableEmpty');
+
+      // Handle clicks on any active device count link
+      document.addEventListener('click', async function(e) {
+        const clickedLink = e.target.closest('.activeDeviceCountLink');
+        if (!clickedLink) return;
+
+        e.preventDefault();
+
+        // Show loading state on the clicked link
+        const originalContent = clickedLink.innerHTML;
+        clickedLink.innerHTML = '<span class="badge bg-info-subtle text-info"><i class="bi bi-arrow-clockwise spin"></i> Memuat...</span>';
+        clickedLink.style.pointerEvents = 'none';
+        
+        // Force browser to start animation - use requestAnimationFrame for smooth start
+        requestAnimationFrame(() => {
+          const spinIcon = clickedLink.querySelector('.spin');
+          if (spinIcon) {
+            // Force reflow
+            void spinIcon.offsetWidth;
+            // Set inline styles to override any conflicting CSS
+            spinIcon.style.cssText = 'animation: spin 1s linear infinite !important; display: inline-block !important; transform-origin: center !important;';
+          }
+        });
+
+        // Show modal and loading state
+        liveMonitoringModal.show();
+        sessionTableLoading.style.display = 'block';
+        sessionTableContent.style.display = 'none';
+        sessionTableEmpty.style.display = 'none';
+        sessionTableBody.innerHTML = '';
+
+        try {
+          const response = await fetch('/admin/api/live-devices');
+          const data = await response.json();
+
+          sessionTableLoading.style.display = 'none';
+
+          // Restore clicked link
+          if (clickedLink) {
+            clickedLink.innerHTML = originalContent;
+            clickedLink.style.pointerEvents = '';
+          }
+
+          if (data.success && data.sessions && data.sessions.length > 0) {
+            // Clear existing rows
+            sessionTableBody.innerHTML = '';
+
+              // Generate table rows
+              data.sessions.forEach((session) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                  <td class="py-3">
+                    <div class="d-flex align-items-center gap-2">
+                      <i class="bi bi-person-circle text-primary"></i>
+                      <div>
+                        <strong>${escapeHtml(session.user || 'N/A')}</strong>
+                        ${session.commentId ? `
+                          <br>
+                          <small class="text-muted">
+                            <code class="bg-light px-1 py-0 rounded">${escapeHtml(session.commentId)}</code>
+                          </small>
+                        ` : ''}
+                      </div>
+                    </div>
+                  </td>
+                  <td class="text-nowrap py-3">
+                    <code class="text-primary">${escapeHtml(session.ip || 'N/A')}</code>
+                  </td>
+                  <td class="py-3">
+                    ${session.hostname && session.hostname !== 'N/A' ? `
+                      <span class="badge bg-info-subtle text-info">
+                        <i class="bi bi-laptop"></i> ${escapeHtml(session.hostname)}
+                      </span>
+                    ` : '<span class="text-muted">-</span>'}
+                  </td>
+                  <td class="text-nowrap py-3">
+                    <code class="text-muted">${escapeHtml(session.mac || 'N/A')}</code>
+                  </td>
+                  <td class="text-nowrap py-3">
+                    <span class="badge bg-success-subtle text-success">
+                      <i class="bi bi-clock"></i> ${escapeHtml(session.formattedUptime || '0s')}
+                    </span>
+                  </td>
+                `;
+                sessionTableBody.appendChild(row);
+              });
+
+            sessionTableContent.style.display = 'block';
+          } else {
+            sessionTableEmpty.style.display = 'block';
+          }
+        } catch (error) {
+          console.error('Error fetching active devices:', error);
+          sessionTableLoading.style.display = 'none';
+          sessionTableEmpty.style.display = 'block';
+
+          // Restore clicked link on error
+          if (clickedLink) {
+            clickedLink.innerHTML = originalContent;
+            clickedLink.style.pointerEvents = '';
+          }
+
+          // Show error using feedback modal
+          if (typeof displayFeedbackModal === 'function') {
+            displayFeedbackModal('error', 'Kesalahan', 'Gagal memuat data perangkat aktif: ' + error.message);
+          } else {
+            alert('Gagal memuat data perangkat aktif: ' + error.message);
+          }
+        }
+      });
+
+      // Helper function to escape HTML
+      function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    })();
+  </script>
+
+  <%- include('../partials/feedback_modal') %>
+</body>
+</html>

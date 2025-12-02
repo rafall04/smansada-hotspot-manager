@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="id" data-bs-theme="auto">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#4f46e5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Mikrotik Manager">
+  <meta name="description" content="Sistem Manajemen Hotspot Mikrotik">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+  <title><%= title %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+  <link href="/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Standard Bootstrap Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-router"></i> <%= (settings && settings.school_name) || 'Dashboard Guru' %>
+            </span>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <div class="ms-auto">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle d-flex align-items-center gap-2" 
+                                type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle fs-4"></i>
+                            <span class="fw-semibold"><%= session.username %></span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#editAccountModal">
+                                    <i class="bi bi-gear"></i> Pengaturan Akun
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="POST" action="/logout" class="d-inline w-100">
+                                    <button type="submit" class="dropdown-item text-danger">
+                                        <i class="bi bi-box-arrow-right"></i> Logout
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5">
+        <!-- Alert Messages -->
+        <% if (error) { %>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i> <%= error %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <% } %>
+        <% if (success) { %>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle-fill"></i> <%= success %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <% } %>
+
+        <!-- Welcome Section -->
+        <div class="mb-4">
+            <h2 class="fw-bold mb-2">Selamat Datang, <%= session.username %>!</h2>
+            <p class="text-muted">Kelola akun hotspot Anda dengan mudah</p>
+        </div>
+
+        <div class="row g-4">
+            <!-- Device Quota Card -->
+            <% if (deviceQuota && deviceQuota.profileName) { %>
+            <div class="col-lg-12">
+                <div class="card card-clean">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-devices"></i> Status Kuota Perangkat</h5>
+                    </div>
+                    <div class="card-body">
+                        <% if (deviceQuota.maxDevices === null) { %>
+                            <div class="alert alert-info mb-0">
+                                <i class="bi bi-info-circle"></i> 
+                                Anda menggunakan profil <b><%= deviceQuota.profileName %></b>. 
+                                Kuota perangkat: <b>Tidak Terbatas</b>.
+                            </div>
+                        <% } else { %>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-semibold">Perangkat Terhubung: <span class="text-primary"><%= deviceQuota.currentDevices %></span> / <span class="text-secondary"><%= deviceQuota.maxDevices %></span></span>
+                                    <% 
+                                        const percentage = (deviceQuota.currentDevices / deviceQuota.maxDevices) * 100;
+                                        let progressClass = 'bg-success';
+                                        if (percentage >= 100) {
+                                            progressClass = 'bg-danger';
+                                        } else if (percentage >= 80) {
+                                            progressClass = 'bg-warning';
+                                        }
+                                    %>
+                                </div>
+                                <div class="progress" style="height: 25px;">
+                                    <div class="progress-bar <%= progressClass %>" role="progressbar" 
+                                         style="width: <%= Math.min(percentage, 100) %>%" 
+                                         aria-valuenow="<%= deviceQuota.currentDevices %>" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="<%= deviceQuota.maxDevices %>">
+                                        <%= Math.round(percentage) %>%
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <% if (deviceQuota.isFull) { %>
+                                <div class="alert alert-warning alert-dismissible fade show mb-0" role="alert">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> 
+                                    <strong>Batas perangkat tercapai (Maksimal <%= deviceQuota.maxDevices %>).</strong> 
+                                    Agar bisa login di HP baru, silakan klik tombol 'Kick' pada salah satu perangkat lama di tabel Sesi Aktif di bawah.
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            <% } else { %>
+                                <div class="alert alert-light mb-0">
+                                    <i class="bi bi-info-circle"></i> 
+                                    Anda menggunakan profil <b><%= deviceQuota.profileName %></b>. 
+                                    Sisa slot: <b><%= deviceQuota.maxDevices - deviceQuota.currentDevices %> perangkat</b>.
+                                </div>
+                            <% } %>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+            <% } %>
+
+            <!-- User Information Card -->
+            <div class="col-lg-6">
+                <div class="card card-clean">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-person-badge"></i> Informasi User Hotspot</h5>
+                    </div>
+                    <div class="card-body">
+                        <% if (hotspotUser) { %>
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4"><i class="bi bi-person"></i> Username</dt>
+                                <dd class="col-sm-8"><code><%= hotspotUser.name %></code></dd>
+                                
+                                <dt class="col-sm-4"><i class="bi bi-key"></i> Password</dt>
+                                <dd class="col-sm-8"><code><%= hotspotUser.password || 'N/A' %></code></dd>
+                                
+                                <dt class="col-sm-4"><i class="bi bi-sliders"></i> Profile</dt>
+                                <dd class="col-sm-8"><%= hotspotUser.profile || 'N/A' %></dd>
+                                
+                                <% if (hotspotUser['limit-uptime']) { %>
+                                    <dt class="col-sm-4"><i class="bi bi-clock"></i> Limit Uptime</dt>
+                                    <dd class="col-sm-8"><%= hotspotUser['limit-uptime'] %></dd>
+                                <% } %>
+                                
+                                <% if (hotspotUser['limit-bytes-total']) { %>
+                                    <dt class="col-sm-4"><i class="bi bi-hdd"></i> Limit Bytes</dt>
+                                    <dd class="col-sm-8"><%= hotspotUser['limit-bytes-total'] %></dd>
+                                <% } %>
+                                
+                                <dt class="col-sm-4"><i class="bi bi-tag"></i> Comment</dt>
+                                <dd class="col-sm-8"><code><%= hotspotUser.comment || 'N/A' %></code></dd>
+                            </dl>
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#loginHelperModal">
+                                    <i class="bi bi-qr-code"></i> Show Login QR / Link
+                                </button>
+                            </div>
+                        <% } else { %>
+                            <div class="alert alert-warning mb-0">
+                                <i class="bi bi-exclamation-triangle"></i> User hotspot tidak ditemukan
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Sessions Card -->
+            <div class="col-lg-6">
+                <div class="card card-clean">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-wifi"></i> Status Koneksi
+                        </h5>
+                        <% if (activeSessions && activeSessions.length > 0) { %>
+                            <span class="badge bg-light text-dark fs-6">
+                                <%= activeSessions.length %> Device
+                            </span>
+                        <% } %>
+                    </div>
+                    <div class="card-body">
+                        <% if (activeSessions && activeSessions.length > 0) { %>
+                            <div class="mb-3">
+                                <span class="badge bg-success-subtle text-success">
+                                    <i class="bi bi-check-circle-fill"></i> Terhubung (<%= activeSessions.length %> device)
+                                </span>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Device</th>
+                                            <th class="text-nowrap">IP Address</th>
+                                            <th class="text-nowrap">MAC Address</th>
+                                            <th class="text-nowrap">Uptime</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% activeSessions.forEach((session, index) => { %>
+                                            <tr>
+                                                <td>
+                                                    <i class="bi bi-device-hdd"></i> Device <%= index + 1 %>
+                                                </td>
+                                                <td class="text-nowrap"><code><%= session.address || 'N/A' %></code></td>
+                                                <td class="text-nowrap"><code><%= session['mac-address'] || 'N/A' %></code></td>
+                                                <td class="text-nowrap"><%= session.uptime || 'N/A' %></td>
+                                                <td>
+                                                    <button class="btn btn-outline-danger btn-sm kick-session-btn" 
+                                                            data-session-id="<%= session['.id'] %>"
+                                                            title="Kick this device">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <% }); %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <% } else { %>
+                            <div class="text-center py-4">
+                                <span class="badge bg-secondary-subtle text-secondary mb-3">
+                                    <i class="bi bi-x-circle"></i> Tidak Terhubung
+                                </span>
+                                <p class="text-muted mb-0">Tidak ada koneksi aktif saat ini.</p>
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Update Form Card -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card card-clean">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Update User Hotspot</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="/guru/update-hotspot" id="updateHotspotForm">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="username" class="form-label">
+                                        <i class="bi bi-person"></i> Username Baru
+                                    </label>
+                                    <input type="text" class="form-control" id="username" name="username" 
+                                           placeholder="Biarkan kosong jika tidak ingin mengubah">
+                                    <div class="form-text">Username untuk login hotspot</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="password" class="form-label">
+                                        <i class="bi bi-key"></i> Password Baru
+                                    </label>
+                                    <input type="password" class="form-control" id="password" name="password" 
+                                           placeholder="Biarkan kosong jika tidak ingin mengubah">
+                                    <div class="form-text">Password untuk login hotspot</div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-text text-muted">
+                                        📝 Catatan: Anda cukup mengisi kolom yang ingin diubah. Kosongkan kolom lainnya untuk tetap menggunakan data saat ini.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-save"></i> Simpan Perubahan
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions Card -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card card-clean">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-gear"></i> Aksi</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="/guru/kick-session" 
+                              onsubmit="return confirm('Apakah Anda yakin ingin mereset semua koneksi? Semua device akan terputus dan harus login ulang.');">
+                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                <button type="submit" class="btn btn-warning" 
+                                        <%= !activeSessions || activeSessions.length === 0 ? 'disabled' : '' %>>
+                                    <i class="bi bi-arrow-clockwise"></i> Reset Semua Koneksi
+                                </button>
+                                <div class="flex-grow-1">
+                                    <p class="mb-0 text-muted">
+                                        <i class="bi bi-info-circle"></i> 
+                                        Memutuskan semua koneksi aktif (<strong><%= activeSessions ? activeSessions.length : 0 %></strong> device) agar user dapat login ulang dengan password baru
+                                    </p>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Helper Modal -->
+    <div class="modal fade" id="loginHelperModal" tabindex="-1" aria-labelledby="loginHelperModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="loginHelperModalLabel">
+                        <i class="bi bi-qr-code"></i> Hotspot Login Helper
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <% if (hotspotUser) { %>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> <strong>Peringatan:</strong> Link ini mengandung password. Jangan bagikan kepada orang lain.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-link-45deg"></i> Magic Link
+                            </label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="magicLinkInput" readonly
+                                       value="<%= hotspotLoginUrl || 'Generating...' %>">
+                                <button class="btn btn-outline-secondary" type="button" id="copyLinkBtn">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </div>
+                            <div class="form-text">Scan QR code atau klik link untuk login otomatis</div>
+                        </div>
+                        <div class="mb-3 text-center">
+                            <label class="form-label d-block">
+                                <i class="bi bi-qr-code"></i> QR Code
+                            </label>
+                            <div id="qrcode" class="d-flex justify-content-center"></div>
+                        </div>
+                    <% } else { %>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> User hotspot tidak ditemukan
+                        </div>
+                    <% } %>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Account Modal - OUTSIDE any loops/tables -->
+    <div class="modal fade" id="editAccountModal" tabindex="-1" aria-labelledby="editAccountModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editAccountModalLabel">
+                        <i class="bi bi-gear"></i> Pengaturan Akun
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="editAccountForm" novalidate>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="edit_username" class="form-label">
+                                <i class="bi bi-person"></i> Username Web Login <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="edit_username" name="username"
+                                   value="<%= session.username %>" required minlength="3" maxlength="50">
+                            <div class="form-text">Username untuk login ke web dashboard</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_password" class="form-label">
+                                <i class="bi bi-key"></i> Password Web Login Baru
+                            </label>
+                            <input type="password" class="form-control" id="edit_password" name="password"
+                                   placeholder="Kosongkan jika tidak ingin mengubah" minlength="6">
+                            <div class="form-text">Kosongkan jika tidak ingin mengubah password web login</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Simpan Perubahan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-5 py-3 text-center text-muted small border-top">
+        &copy; RAF 2025 <%= (settings && settings.school_name) || 'Dashboard Guru' %>. Built with ❤️.
+    </footer>
+
+    <script>
+        (function() {
+            'use strict';
+
+            const updateHotspotForm = document.getElementById('updateHotspotForm');
+            if (updateHotspotForm) {
+                updateHotspotForm.addEventListener('submit', function(e) {
+                    const usernameInput = this.querySelector('input[name="username"]');
+                    const passwordInput = this.querySelector('input[name="password"]');
+                    const usernameVal = usernameInput ? usernameInput.value.trim() : '';
+                    const passwordVal = passwordInput ? passwordInput.value.trim() : '';
+
+                    if (!usernameVal && !passwordVal) {
+                        e.preventDefault();
+                        alert('Isi minimal salah satu kolom untuk diperbarui.');
+                    }
+                });
+            }
+
+            const editAccountForm = document.getElementById('editAccountForm');
+            if (editAccountForm) {
+                editAccountForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    if (this.dataset.submitting === 'true') {
+                        return false;
+                    }
+                    this.dataset.submitting = 'true';
+
+                    const formData = new FormData(this);
+                    const formObject = {};
+                    formData.forEach((value, key) => {
+                        formObject[key] = value;
+                    });
+
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    const originalBtnText = submitBtn ? submitBtn.innerHTML : '';
+
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Menyimpan...';
+                    }
+
+                    try {
+                        const response = await fetch('/guru/update-web-account', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify(formObject),
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok && data.success) {
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('editAccountModal'));
+                            if (modal) {
+                                modal.hide();
+                            }
+                            window.location.href = '/guru/dashboard?success=' + encodeURIComponent(data.message || 'Akun berhasil diperbarui');
+                        } else {
+                            alert('Gagal menyimpan: ' + (data.message || 'Unknown error'));
+                            this.dataset.submitting = 'false';
+                            if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = originalBtnText;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Form submit error:', error);
+                        alert('Gagal menyimpan: ' + (error.message || 'Network error occurred'));
+                        this.dataset.submitting = 'false';
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = originalBtnText;
+                        }
+                    }
+
+                    return false;
+                });
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                const kickSessionButtons = document.querySelectorAll('.kick-session-btn');
+                kickSessionButtons.forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        const sessionId = this.getAttribute('data-session-id');
+                        if (!sessionId) return;
+
+                        if (!confirm('Apakah Anda yakin ingin memutus koneksi device ini?')) {
+                            return;
+                        }
+
+                        const originalHtml = this.innerHTML;
+                        this.disabled = true;
+                        this.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+                        try {
+                            const response = await fetch(`/guru/kick-session/${sessionId}`, {
+                                method: 'POST',
+                                headers: {
+                                    'Accept': 'application/json'
+                                }
+                            });
+
+                            const data = await response.json();
+
+                            if (response.ok && data.success) {
+                                showToast('success', 'Device berhasil diputus');
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 1000);
+                            } else {
+                                showToast('error', data.message || 'Gagal memutus koneksi');
+                                this.disabled = false;
+                                this.innerHTML = originalHtml;
+                            }
+                        } catch (error) {
+                            console.error('Kick session error:', error);
+                            showToast('error', 'Gagal memutus koneksi: ' + error.message);
+                            this.disabled = false;
+                            this.innerHTML = originalHtml;
+                        }
+                    });
+                });
+
+                const loginHelperModal = document.getElementById('loginHelperModal');
+                if (loginHelperModal) {
+                    loginHelperModal.addEventListener('shown.bs.modal', function() {
+                        const magicLinkInput = document.getElementById('magicLinkInput');
+                        if (magicLinkInput && magicLinkInput.value && magicLinkInput.value !== 'Generating...') {
+                            const qrcodeDiv = document.getElementById('qrcode');
+                            if (qrcodeDiv) {
+                                qrcodeDiv.innerHTML = '';
+                                if (typeof QRCode !== 'undefined') {
+                                    new QRCode(qrcodeDiv, {
+                                        text: magicLinkInput.value,
+                                        width: 256,
+                                        height: 256,
+                                        colorDark: '#1f2937',
+                                        colorLight: '#ffffff',
+                                        correctLevel: QRCode.CorrectLevel.H
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
+
+                const copyLinkBtn = document.getElementById('copyLinkBtn');
+                if (copyLinkBtn) {
+                    copyLinkBtn.addEventListener('click', function() {
+                        const magicLinkInput = document.getElementById('magicLinkInput');
+                        if (magicLinkInput) {
+                            magicLinkInput.select();
+                            magicLinkInput.setSelectionRange(0, 99999);
+                            document.execCommand('copy');
+                            showToast('success', 'Link berhasil disalin');
+                        }
+                    });
+                }
+            });
+        })();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="/js/app.js"></script>
+  <%- include('../partials/feedback_modal') %>
+</body>
+</html>

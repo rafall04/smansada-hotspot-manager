@@ -1,0 +1,668 @@
+/* ============================================
+   Clean SaaS / Performance First Design
+   Lightweight, High-Contrast, Professional
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Color Palette - Slate/Indigo Theme (Light Mode) */
+  --primary-50: #eef2ff;
+  --primary-100: #e0e7ff;
+  --primary-500: #6366f1;
+  --primary-600: #4f46e5;
+  --primary-700: #4338ca;
+
+  /* Slate Colors */
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+
+  /* Background & Text (Light Mode) */
+  --bg-app: var(--slate-50);
+  --bg-card: #ffffff;
+  --text-heading: var(--slate-900);
+  --text-body: var(--slate-700);
+  --text-muted: var(--slate-500);
+  --border-color: var(--slate-200);
+
+  /* Card Clean */
+  --card-border: 1px solid var(--border-color);
+  --card-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --card-radius: 8px;
+}
+
+/* Dark Mode Variables */
+[data-bs-theme="dark"] {
+  --bg-app: var(--slate-900);
+  --bg-card: var(--slate-800);
+  --text-heading: var(--slate-50);
+  --text-body: var(--slate-300);
+  --text-muted: var(--slate-400);
+  --border-color: var(--slate-700);
+}
+
+/* Global Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100vh;
+  background-color: #f8fafc;
+  color: var(--text-body);
+  line-height: 1.6;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--slate-900);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+h4 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+h5 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+h6 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+p {
+  color: var(--text-body);
+}
+
+/* Card Clean Utility Class */
+.card-clean {
+  background-color: var(--bg-card);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.15s ease;
+}
+
+.card-clean:hover {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Standard Bootstrap Cards */
+.card {
+  background-color: var(--bg-card);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+}
+
+.card-header {
+  background-color: var(--bg-card);
+  border-bottom: var(--card-border);
+  padding: 1rem 1.5rem;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+/* Buttons */
+.btn {
+  min-height: 38px;
+  touch-action: manipulation;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background-color: var(--primary-600);
+  border-color: var(--primary-600);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-700);
+  border-color: var(--primary-700);
+}
+
+/* Form Controls */
+.form-control,
+.form-select {
+  font-size: 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  color: var(--text-body);
+  transition: all 0.15s ease;
+  padding: 0.75rem 1rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+  outline: none;
+  background-color: var(--bg-card);
+  color: var(--text-body);
+}
+
+.form-label {
+  font-weight: 500;
+  color: var(--text-heading);
+  margin-bottom: 0.5rem;
+}
+
+/* Navbar - Standard Bootstrap */
+.navbar {
+  border-bottom: var(--card-border);
+  box-shadow: var(--card-shadow);
+  background-color: var(--bg-card) !important;
+}
+
+[data-bs-theme="dark"] .navbar {
+  background-color: var(--bg-card) !important;
+}
+
+.navbar-brand,
+.navbar-text,
+.nav-link {
+  font-weight: 500;
+  color: var(--text-heading) !important;
+}
+
+/* Active Device Count Link Hover Effect */
+.activeDeviceCountLink:hover {
+  opacity: 0.8;
+  text-decoration: underline !important;
+  transition: opacity 0.2s ease;
+}
+
+.navbar-light .navbar-brand,
+.navbar-light .navbar-text {
+  color: var(--text-heading) !important;
+}
+
+.navbar-light .navbar-text {
+  color: var(--text-body) !important;
+}
+
+/* Tables */
+.table-responsive {
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--card-radius);
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.table {
+  margin-bottom: 0;
+  background-color: var(--bg-card);
+}
+
+.table thead th {
+  background-color: var(--slate-50);
+  color: var(--text-heading);
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+  padding: 1rem;
+}
+
+[data-bs-theme="dark"] .table thead th {
+  background-color: var(--slate-800);
+}
+
+.table tbody td {
+  padding: 1rem;
+  border-color: var(--border-color);
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table tbody tr:hover {
+  background-color: var(--slate-50);
+}
+
+[data-bs-theme="dark"] .table tbody tr:hover {
+  background-color: var(--slate-700);
+}
+
+/* Badges - Bootstrap Subtle */
+.badge {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+/* Alerts */
+.alert {
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  padding: 1rem 1.5rem;
+  word-wrap: break-word;
+}
+
+.alert-danger {
+  background-color: #fee2e2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+[data-bs-theme="dark"] .alert-danger {
+  background-color: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #fca5a5;
+}
+
+.alert-success {
+  background-color: #d1fae5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+[data-bs-theme="dark"] .alert-success {
+  background-color: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+.alert-warning {
+  background-color: #fef3c7;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+[data-bs-theme="dark"] .alert-warning {
+  background-color: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+}
+
+/* Login Page */
+.login-container {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 2rem;
+  background-color: #f8fafc;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 460px;
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.login-logo {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1.5rem;
+  background: linear-gradient(135deg, var(--primary-600), var(--primary-500));
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 2rem;
+}
+
+.login-title {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--text-heading);
+}
+
+.login-subtitle {
+  color: var(--text-muted);
+  font-size: 1rem;
+  margin-bottom: 0;
+}
+
+/* Modals */
+.modal-content {
+  background-color: var(--bg-card);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  border-bottom: var(--card-border);
+  padding: 1.5rem;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  border-top: var(--card-border);
+  padding: 1.5rem;
+}
+
+.modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Code Blocks */
+code {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background-color: var(--slate-100);
+  font-size: 0.875rem;
+  color: var(--text-body);
+}
+
+[data-bs-theme="dark"] code {
+  background-color: var(--slate-700);
+}
+
+/* Dropdown */
+.dropdown-menu {
+  background-color: var(--bg-card);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  padding: 0.5rem;
+}
+
+.dropdown-item {
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  transition: background-color 0.15s ease;
+}
+
+.dropdown-item:hover {
+  background-color: var(--slate-100);
+}
+
+[data-bs-theme="dark"] .dropdown-item:hover {
+  background-color: var(--slate-700);
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.75rem;
+  }
+
+  .login-card {
+    padding: 2rem 1.5rem;
+    margin: 1rem;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .table-responsive {
+    font-size: 0.875rem;
+  }
+
+  .btn {
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .login-card {
+    padding: 1.5rem 1rem;
+  }
+
+  .card-header {
+    padding: 1rem;
+    font-size: 0.875rem;
+  }
+
+  .modal-dialog {
+    margin: 0.5rem;
+  }
+}
+
+/* Toast Clean Styling */
+.toast-clean {
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.toast-progress-clean {
+  background: var(--primary-600) !important;
+}
+
+/* Feedback Toast Modal - Floating Top-Right Notification */
+.feedback-toast {
+  pointer-events: none;
+}
+
+.feedback-toast .modal-dialog {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  margin: 0;
+  max-width: 400px;
+  width: auto;
+  z-index: 1090;
+  pointer-events: auto;
+}
+
+.feedback-toast .modal-content {
+  border-radius: var(--card-radius);
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.15);
+  border: var(--card-border);
+  background: var(--bg-card);
+  animation: slideInRight 0.3s ease-out;
+}
+
+.feedback-toast-content {
+  border-left-width: 4px !important;
+  border-left-style: solid !important;
+}
+
+.feedback-toast .modal-body {
+  padding: 1rem;
+}
+
+.feedback-toast .btn-close {
+  opacity: 0.6;
+  padding: 0.5rem;
+}
+
+.feedback-toast .btn-close:hover {
+  opacity: 1;
+}
+
+/* Animation for toast entry */
+/* Loading Spinner Animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Spin animation - CRITICAL: Must override ALL performance rules */
+.spin,
+i.spin,
+.bi.spin,
+i.bi.spin,
+.bi-arrow-clockwise.spin,
+[class*="spin"] {
+  animation: spin 1s linear infinite !important;
+  display: inline-block !important;
+  will-change: transform !important;
+  transform-origin: center !important;
+  animation-duration: 1s !important;
+  animation-iteration-count: infinite !important;
+  animation-timing-function: linear !important;
+  animation-play-state: running !important;
+}
+
+/* Remove all animations for performance (MUST be after .spin definition) */
+*:not(.spin):not([class*="spin"]):not(.spinner-border):not(.spinner-grow):not(.spinner-border-sm) {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.15s !important;
+}
+
+/* Mobile Touch Targets & Responsiveness */
+@media (max-width: 768px) {
+  /* Ensure table cells have adequate padding for touch */
+  .table td,
+  .table th {
+    padding: 0.75rem 0.5rem;
+    min-height: 44px;
+  }
+
+  .table thead th {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  /* Touch-friendly buttons */
+  .btn-sm {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0.5rem;
+  }
+
+  /* Modal table optimization for mobile */
+  #liveMonitoringModal .table-responsive {
+    -webkit-overflow-scrolling: touch;
+    max-height: 70vh;
+    overflow-x: auto;
+    overflow-y: auto;
+  }
+
+  #liveMonitoringModal .table {
+    font-size: 0.875rem;
+  }
+
+  #liveMonitoringModal .table td {
+    white-space: nowrap;
+    padding: 0.75rem 0.5rem;
+  }
+
+  /* Ensure code blocks don't break on mobile */
+  code {
+    word-break: keep-all;
+    white-space: nowrap;
+    font-size: 0.8rem;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Ensure backdrop is completely transparent */
+.feedback-toast.show .modal-backdrop {
+  background-color: transparent;
+  opacity: 0;
+}
+
+.feedback-toast .modal-backdrop {
+  display: none;
+}
+
+/* User Type Card Selection */
+#userTypeExistingCard,
+#userTypeNewCard {
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+#userTypeExistingCard:hover,
+#userTypeNewCard:hover {
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.card.border-primary {
+  border-color: var(--primary-600) !important;
+  background-color: var(--primary-50);
+  transition: all 0.15s ease;
+}
+
+[data-bs-theme="dark"] .card.border-primary {
+  background-color: rgba(99, 102, 241, 0.1);
+}

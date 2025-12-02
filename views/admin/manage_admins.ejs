@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>
+    <%= title %>
+  </title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+  <link href="/css/style.css" rel="stylesheet">
+</head>
+
+<body>
+  <!-- Standard Bootstrap Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/admin/dashboard">
+        <i class="bi bi-router"></i> <%= (settings && settings.school_name) || 'Hotspot Manager' %>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/dashboard">
+              <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/users">
+              <i class="bi bi-people"></i> Guru & Hotspot
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link active" href="/admin/admins">
+              <i class="bi bi-shield-check"></i> Admin Accounts
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/settings">
+              <i class="bi bi-gear"></i> Settings
+            </a>
+          </li>
+        </ul>
+        <div class="d-flex align-items-center gap-2">
+          <span class="navbar-text">
+            <i class="bi bi-person-circle"></i> <%= session.username %>
+          </span>
+          <form method="POST" action="/logout" class="d-inline">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-box-arrow-right"></i> Logout
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4 mb-5">
+    <!-- Alerts -->
+    <% if (error) { %>
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <%= error %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+      <% } %>
+        <% if (success) { %>
+          <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <%= success %>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+          <% } %>
+
+            <!-- Add Admin Form -->
+            <div class="card card-clean mb-4">
+              <div class="card-header">
+                <h5 class="mb-0 fw-bold">Tambah Akun Admin Baru</h5>
+              </div>
+              <div class="card-body">
+                <form method="POST" action="/admin/admins" id="addAdminForm" novalidate>
+                  <div class="row mb-3">
+                    <div class="col-md-6">
+                      <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
+                      <input type="text" class="form-control" id="username" name="username" required
+                        maxlength="100" placeholder="Masukkan Username">
+                      <div class="form-text">Username untuk login ke sistem web.</div>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="password" class="form-label">Password <span class="text-muted">(Opsional)</span></label>
+                      <div class="input-group">
+                        <input type="password" class="form-control" id="password" name="password"
+                          placeholder="Kosongkan untuk menggunakan username sebagai password">
+                        <button type="button" class="btn btn-outline-secondary" id="togglePasswordBtn" title="Tampilkan Password">
+                          <i class="bi bi-eye" id="passwordEyeIcon"></i>
+                        </button>
+                      </div>
+                      <div class="form-text text-muted">Kosongkan jika ingin menggunakan Username sebagai Password.</div>
+                    </div>
+                  </div>
+                  <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> <strong>Catatan:</strong> Akun Admin tidak terhubung dengan Mikrotik Hotspot. Ini hanya untuk akses ke sistem web.
+                  </div>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-person-plus"></i> Tambah Admin
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Admin List -->
+            <div class="card card-clean">
+              <div class="card-header">
+                <h5 class="mb-0 fw-bold">Daftar Akun Admin</h5>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle">
+                    <thead>
+                      <tr>
+                        <th class="text-nowrap">ID</th>
+                        <th>Username</th>
+                        <th class="text-nowrap">Password Login</th>
+                        <th class="text-nowrap">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% if (users && users.length> 0) { %>
+                        <% users.forEach(user=> { %>
+                          <tr>
+                            <td class="fw-medium">
+                              <%= user.id %>
+                            </td>
+                            <td class="fw-semibold">
+                              <%= user.username %>
+                              <% if (user.id === session.userId) { %>
+                                <span class="badge bg-primary-subtle text-primary ms-2">Anda</span>
+                              <% } %>
+                            </td>
+                            <td>
+                              <div class="d-flex align-items-center gap-2">
+                                <code class="mb-0 text-muted">********</code>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                  title="Aksi sandi tidak diizinkan antar Admin">
+                                  <i class="bi bi-eye-slash"></i>
+                                </button>
+                              </div>
+                            </td>
+                            <td>
+                              <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-secondary edit-admin-btn"
+                                  data-user-id="<%= user.id %>" title="Edit Admin">
+                                  <i class="bi bi-pencil"></i>
+                                </button>
+                                <% if (user.id !== session.userId) { %>
+                                  <form method="POST" action="/admin/admins/<%= user.id %>/delete" class="d-inline"
+                                    onsubmit="return confirm('Yakin ingin menghapus akun admin ini?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus Admin">
+                                      <i class="bi bi-trash"></i>
+                                    </button>
+                                  </form>
+                                  <% } else { %>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                      title="Tidak dapat menghapus akun sendiri">
+                                      <i class="bi bi-trash"></i>
+                                    </button>
+                                  <% } %>
+                              </div>
+                            </td>
+                          </tr>
+                          <% }); %>
+                            <% } else { %>
+                              <tr>
+                                <td colspan="4" class="text-center text-muted py-4">Tidak ada akun admin</td>
+                              </tr>
+                              <% } %>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+  </div>
+
+  <!-- Edit Admin Modals -->
+  <% if (users && users.length> 0) { %>
+    <% users.forEach(user=> { %>
+      <div class="modal fade" id="editModal<%= user.id %>" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title fw-bold">Edit Admin: <%= user.username %>
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="/admin/admins/<%= user.id %>" id="editForm<%= user.id %>">
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label class="form-label">Username <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" name="username" value="<%= user.username %>" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Password Baru</label>
+                  <div class="input-group">
+                    <input type="password" class="form-control" id="edit_password_<%= user.id %>" name="password" 
+                      placeholder="Kosongkan jika tidak diubah">
+                    <button type="button" class="btn btn-outline-secondary" id="edit_togglePasswordBtn_<%= user.id %>" 
+                      title="Tampilkan Password">
+                      <i class="bi bi-eye" id="edit_passwordEyeIcon_<%= user.id %>"></i>
+                    </button>
+                  </div>
+                  <div class="form-text">Kosongkan jika tidak ingin mengubah password.</div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                  <i class="bi bi-x-circle"></i> Batal
+                </button>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-check-circle"></i> Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <% }); %>
+        <% } %>
+
+    <footer class="mt-5 py-3 text-center text-muted small border-top">
+      &copy; RAF 2025 <%= (settings && settings.school_name) || 'Hotspot Manager' %>. Built with ❤️.
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      const AdminManagement = {
+        modalInstances: {},
+
+        init: function () {
+          this.attachEventListeners();
+          this.initializePasswordToggle();
+        },
+
+        attachEventListeners: function () {
+          const self = this;
+
+          // Password toggle for add form
+          const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+          if (togglePasswordBtn) {
+            togglePasswordBtn.addEventListener('click', function () {
+              self.togglePasswordVisibility('password', 'passwordEyeIcon');
+            });
+          }
+
+          // Edit admin button listeners
+          document.addEventListener('click', function (e) {
+            if (e.target.closest('.edit-admin-btn')) {
+              const btn = e.target.closest('.edit-admin-btn');
+              const userId = btn.getAttribute('data-user-id');
+              if (userId) {
+                e.preventDefault();
+                e.stopPropagation();
+                self.openEditModal(parseInt(userId));
+              }
+            }
+          });
+
+          // Reveal password button is disabled for admin accounts
+          // No event listener needed
+
+          // Edit form password toggles
+          document.addEventListener('click', function (e) {
+            if (e.target.closest('[id^="edit_togglePasswordBtn_"]')) {
+              const btn = e.target.closest('[id^="edit_togglePasswordBtn_"]');
+              const userId = btn.id.replace('edit_togglePasswordBtn_', '');
+              self.togglePasswordVisibility('edit_password_' + userId, 'edit_passwordEyeIcon_' + userId);
+            }
+          });
+
+          // Edit form submissions
+          document.querySelectorAll('[id^="editForm"]').forEach((form) => {
+            form.addEventListener('submit', self.handleEditFormSubmit.bind(self, form));
+          });
+        },
+
+        openEditModal: function (userId) {
+          const modalId = 'editModal' + userId;
+          const modalElement = document.getElementById(modalId);
+
+          if (!modalElement) return;
+
+          if (!this.modalInstances[modalId]) {
+            this.modalInstances[modalId] = new bootstrap.Modal(modalElement, {
+              backdrop: true,
+              keyboard: true,
+              focus: true
+            });
+          }
+
+          const modalInstance = this.modalInstances[modalId];
+          modalInstance.show();
+        },
+
+        togglePasswordVisibility: function (inputId, iconId) {
+          const passwordInput = document.getElementById(inputId);
+          const eyeIcon = document.getElementById(iconId);
+          if (!passwordInput || !eyeIcon) return;
+
+          if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            eyeIcon.className = 'bi bi-eye-slash';
+          } else {
+            passwordInput.type = 'password';
+            eyeIcon.className = 'bi bi-eye';
+          }
+        },
+
+        // revealPassword function removed - password reveal is disabled for admin accounts
+
+        handleEditFormSubmit: async function (form, e) {
+          e.preventDefault();
+          if (form.dataset.submitting === 'true') return false;
+
+          const submitBtn = form.querySelector('button[type="submit"]');
+          const originalBtnText = submitBtn ? submitBtn.innerHTML : '';
+          form.dataset.submitting = 'true';
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Menyimpan...';
+          }
+
+          try {
+            const formData = new FormData(form);
+            const response = await fetch(form.action, {
+              method: 'POST',
+              body: formData
+            });
+
+            if (response.redirected) {
+              window.location.href = response.url;
+              return;
+            }
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+              window.location.reload();
+            } else {
+              if (typeof displayFeedbackModal === 'function') {
+                displayFeedbackModal('error', 'Gagal Menyimpan', data.message || 'Unknown error');
+              } else {
+                alert('Gagal menyimpan: ' + (data.message || 'Unknown error'));
+              }
+              form.dataset.submitting = 'false';
+              if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+              }
+            }
+          } catch (error) {
+            console.error('Error:', error);
+            if (typeof displayFeedbackModal === 'function') {
+              displayFeedbackModal('error', 'Kesalahan', 'Gagal menyimpan: ' + error.message);
+            } else {
+              alert('Gagal menyimpan: ' + error.message);
+            }
+            form.dataset.submitting = 'false';
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = originalBtnText;
+            }
+          }
+        },
+
+        initializePasswordToggle: function () {
+          // Initialize password toggles for edit modals
+          <% if (users && users.length> 0) { %>
+            <% users.forEach(user=> { %>
+              const toggleBtn<%= user.id %> = document.getElementById('edit_togglePasswordBtn_<%= user.id %>');
+              if (toggleBtn<%= user.id %>) {
+                toggleBtn<%= user.id %>.addEventListener('click', () => {
+                  this.togglePasswordVisibility('edit_password_<%= user.id %>', 'edit_passwordEyeIcon_<%= user.id %>');
+                });
+              }
+            <% }); %>
+          <% } %>
+        }
+      };
+
+      document.addEventListener('DOMContentLoaded', function () {
+        AdminManagement.init();
+      });
+    })();
+  </script>
+
+  <%- include('../partials/feedback_modal') %>
+</body>
+
+</html>
+
