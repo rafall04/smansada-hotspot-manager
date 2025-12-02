@@ -26,6 +26,18 @@ try {
     timeout: 5000,
     verbose: process.env.NODE_ENV === 'development' ? console.log : null
   });
+  
+  // CRITICAL: Set journal mode to DELETE to avoid WAL file permission issues
+  // WAL mode requires additional files (hotspot.db-wal, hotspot.db-shm) which can cause permission errors
+  try {
+    const journalMode = db.prepare('PRAGMA journal_mode').get();
+    if (journalMode && journalMode.journal_mode && journalMode.journal_mode.toUpperCase() === 'WAL') {
+      console.log('[Settings] Switching from WAL to DELETE journal mode to prevent permission issues');
+      db.exec('PRAGMA journal_mode=DELETE');
+    }
+  } catch (pragmaError) {
+    console.warn('[Settings] Could not set journal mode:', pragmaError.message);
+  }
 } catch (error) {
   console.error('[Settings] Failed to initialize database connection:', error.message);
   throw error;
