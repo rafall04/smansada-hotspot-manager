@@ -141,7 +141,20 @@ fi
 
 # Verify database still exists after pull
 if [ -f "$DB_FILE" ]; then
-    echo "✓ Database file verified after update"
+    DB_SIZE_AFTER=$(stat -f%z "$DB_FILE" 2>/dev/null || stat -c%s "$DB_FILE" 2>/dev/null || echo "0")
+    if [ "$DB_SIZE_AFTER" -gt 0 ]; then
+        echo "✓ Database file verified after update (size: $(du -h "$DB_FILE" | cut -f1))"
+    else
+        echo "⚠️  WARNING: Database file exists but is empty!"
+        if [ -f "$BACKUP_FILE" ]; then
+            echo "Restoring from backup..."
+            cp "$BACKUP_FILE" "$DB_FILE"
+            echo "✓ Database restored from backup"
+        else
+            echo "❌ ERROR: No backup available to restore!"
+            exit 1
+        fi
+    fi
 else
     echo "⚠️  WARNING: Database file missing after update!"
     if [ -f "$BACKUP_FILE" ]; then
@@ -150,6 +163,18 @@ else
         echo "✓ Database restored from backup"
     else
         echo "❌ ERROR: No backup available to restore!"
+        exit 1
+    fi
+fi
+
+# Double-check: Verify database is not tracked by git (safety check)
+if git ls-files --error-unmatch "$DB_FILE" &>/dev/null; then
+    echo "⚠️  CRITICAL WARNING: Database file is tracked by git!"
+    echo "   This should not happen. Database should be in .gitignore."
+    echo "   Please check .gitignore and ensure *.db is listed."
+    read -p "Continue anyway? (y/N): " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1
     fi
 fi
