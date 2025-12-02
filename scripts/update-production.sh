@@ -83,9 +83,10 @@ if [ -n "$GIT_STATUS" ]; then
     git reset --hard HEAD
     git clean -fd --exclude="hotspot.db" --exclude="backups/" --exclude="logs/" --exclude="node_modules/" --exclude=".env"
     
-    # Restore execute permissions for shell scripts (git doesn't preserve chmod +x)
-    echo "Restoring execute permissions for scripts..."
-    chmod +x scripts/*.sh 2>/dev/null || true
+    # Reset any permission changes (chmod +x) that git sees as modifications
+    # This ensures clean state before pull
+    git checkout -- scripts/*.sh 2>/dev/null || true
+    
     echo "✓ Uncommitted changes reset"
     echo ""
 else
@@ -106,6 +107,9 @@ if [ "$LOCAL" = "$REMOTE" ]; then
     echo "✓ Already up to date. No changes to pull."
     echo ""
     
+    # Restore execute permissions (even if no update, permissions might be lost)
+    chmod +x scripts/*.sh 2>/dev/null || true
+    
     # Restart application if it was running
     if [ "$PM2_RUNNING" -gt 0 ]; then
         echo "Restarting application..."
@@ -115,7 +119,12 @@ if [ "$LOCAL" = "$REMOTE" ]; then
     exit 0
 elif [ "$LOCAL" = "$BASE" ]; then
     echo "New updates available. Pulling changes..."
-    git pull origin main
+    
+    # Reset any remaining local changes (permission changes) before pull
+    git checkout -- . 2>/dev/null || true
+    
+    # Pull with rebase to avoid merge conflicts
+    git pull origin main --rebase --no-edit || git pull origin main
     
     echo "✓ Changes pulled successfully"
     echo ""
@@ -127,7 +136,8 @@ elif [ "$REMOTE" = "$BASE" ]; then
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1
     fi
-    git pull origin main --rebase
+    git checkout -- . 2>/dev/null || true
+    git pull origin main --rebase --no-edit || git pull origin main
 else
     echo "⚠️  WARNING: Diverged branches detected."
     echo "   Local and remote have different commits."
@@ -136,7 +146,8 @@ else
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1
     fi
-    git pull origin main --rebase
+    git checkout -- . 2>/dev/null || true
+    git pull origin main --rebase --no-edit || git pull origin main
 fi
 
 # Verify database still exists after pull
@@ -207,8 +218,12 @@ if command -v pm2 &> /dev/null; then
     echo ""
 fi
 
-# Restore execute permissions (in case they were lost during git reset)
+# Restore execute permissions for shell scripts (after all git operations)
+# This must be done AFTER pull to avoid git seeing files as modified
+echo "Restoring execute permissions for scripts..."
 chmod +x scripts/*.sh 2>/dev/null || true
+echo "✓ Script permissions restored"
+echo ""
 
 # Summary
 echo "=========================================="
