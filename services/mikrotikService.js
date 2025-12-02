@@ -151,6 +151,10 @@ class MikrotikService {
 
       return users[0];
     } catch (error) {
+      const cantLoginMessage = formatMikrotikError(error);
+      if (cantLoginMessage) {
+        throw new Error(cantLoginMessage);
+      }
       throw new Error(`Gagal mengambil user hotspot: ${error.message}`);
     }
   }
@@ -587,6 +591,10 @@ class MikrotikService {
 
       return await this.getHotspotUserByComment(commentId);
     } catch (error) {
+      const cantLoginMessage = formatMikrotikError(error);
+      if (cantLoginMessage) {
+        throw new Error(cantLoginMessage);
+      }
       throw new Error(`Gagal membuat user hotspot: ${error.message}`);
     }
   }
