@@ -16,6 +16,18 @@ function verifyDatabaseSchema() {
     const dbPath = path.join(__dirname, 'hotspot.db');
     const db = new Database(dbPath);
 
+    // CRITICAL: Set journal mode to DELETE to prevent WAL file permission issues
+    try {
+      const journalMode = db.prepare('PRAGMA journal_mode').get();
+      if (journalMode && journalMode.journal_mode && journalMode.journal_mode.toUpperCase() === 'WAL') {
+        console.log('[Schema Check] Switching from WAL to DELETE journal mode to prevent permission issues');
+        db.exec('PRAGMA journal_mode=DELETE');
+        console.log('[Schema Check] ✓ Journal mode set to DELETE');
+      }
+    } catch (pragmaError) {
+      console.warn('[Schema Check] Could not set journal mode:', pragmaError.message);
+    }
+
     const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
     const columnNames = settingsColumns.map((col) => col.name);
     let schemaUpdated = false;
