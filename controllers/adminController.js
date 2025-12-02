@@ -362,13 +362,35 @@ class AdminController {
         console.log('[Settings] Router and notification settings updated successfully');
         console.log('[Settings] Update result:', updateResult.changes, 'rows affected');
         
-        // Verify persistence by reading back (optional, for debugging)
-        if (process.env.NODE_ENV === 'development') {
+        // CRITICAL: Post-update verification - check if data can be read immediately
+        // This detects I/O errors that prevent data persistence
+        try {
           const verifySettings = Settings.get();
+          
+          // Check if Settings.get() returned empty object (critical I/O failure)
+          if (!verifySettings || Object.keys(verifySettings).length === 0) {
+            console.error('[Settings] ⚠️  CRITICAL: Settings.get() returned empty after successful update!');
+            req.flash('warning', '⚠️ Peringatan Kritis: Pengaturan tersimpan, tetapi sistem mendeteksi kegagalan I/O. Data mungkin hilang saat restart. Cek izin file server!');
+            logActivity(req, 'UPDATE_SETTINGS', 'Settings updated but I/O verification failed');
+            return res.redirect('/admin/settings');
+          }
+          
+          // Verify critical fields persisted correctly
           if (verifySettings.router_password_encrypted !== updateData.router_password_encrypted) {
             console.warn('[Settings] WARNING: Password may not have persisted correctly');
+            req.flash('warning', '⚠️ Peringatan: Password mungkin tidak tersimpan dengan benar. Silakan cek kembali.');
           } else {
-            console.log('[Settings] ✓ Password persistence verified');
+            console.log('[Settings] ✓ Post-update verification: Password persistence confirmed');
+          }
+        } catch (verifyError) {
+          // If verification fails, it's a critical I/O issue
+          console.error('[Settings] ⚠️  CRITICAL: Post-update verification failed:', verifyError.message);
+          console.error('[Settings] Error code:', verifyError.code);
+          
+          if (verifyError.code && (verifyError.code.includes('SQLITE_IOERR') || verifyError.code.includes('IOERR'))) {
+            req.flash('warning', '⚠️ Peringatan Kritis: Pengaturan tersimpan, tetapi sistem mendeteksi kegagalan I/O. Data mungkin hilang saat restart. Cek izin file server!');
+            logActivity(req, 'UPDATE_SETTINGS', 'Settings updated but I/O verification failed');
+            return res.redirect('/admin/settings');
           }
         }
       } catch (dbError) {

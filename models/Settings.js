@@ -54,11 +54,11 @@ function sleep(ms) {
 
 class Settings {
   /**
-   * Get settings with retry logic for transient I/O errors
-   * @param {number} retries - Number of retry attempts (default: 3)
-   * @returns {Object} Settings object
+   * Get settings with simplified retry logic for transient I/O errors
+   * @param {number} retries - Number of retry attempts (default: 2, reduced to prevent blocking)
+   * @returns {Object} Settings object or empty object on critical failure
    */
-  static get(retries = 3) {
+  static get(retries = 2) {
     let lastError = null;
     
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -117,39 +117,36 @@ class Settings {
         
         // CRITICAL: Enhanced diagnostic logging for SQLITE_IOERR
         if (error.code && (error.code.includes('SQLITE_IOERR') || error.code.includes('IOERR'))) {
-          if (attempt === 0) {
-            // Only log full details on first attempt
-            console.error('='.repeat(60));
-            console.error('⚠️  CRITICAL: SQLITE I/O ERROR DETECTED');
-            console.error('='.repeat(60));
-            console.error('Full error details:');
-            console.error('  Message:', error.message);
-            console.error('  Code:', error.code);
-            console.error('  Database path:', dbPath);
-            console.error('  Attempt:', attempt + 1, 'of', retries + 1);
-            console.error('');
-            console.error('ROOT CAUSE: File system permissions or concurrent access issue');
-            console.error('');
-            console.error('IMMEDIATE ACTION REQUIRED:');
-            console.error('  1. Check file ownership: ls -l', dbPath);
-            console.error('  2. Fix ownership: sudo chown -R $(whoami):$(whoami) /path/to/project');
-            console.error('  3. Fix permissions: sudo chmod -R 775 /path/to/project');
-            console.error('  4. Remove journal files: rm -f hotspot.db-journal hotspot.db-wal hotspot.db-shm');
-            console.error('  5. Set journal mode: sqlite3 hotspot.db "PRAGMA journal_mode=DELETE;"');
-            console.error('  6. See PERMISSIONS_WARNING.md for detailed instructions');
-            console.error('='.repeat(60));
-          } else {
-            console.error(`[Settings.get] SQLITE I/O ERROR (Attempt ${attempt + 1}/${retries + 1}):`, error.message);
-          }
+          // Always log full details for I/O errors
+          console.error('='.repeat(60));
+          console.error('⚠️  CRITICAL: SQLITE I/O ERROR DETECTED (Settings.get)');
+          console.error('='.repeat(60));
+          console.error('Full error details:');
+          console.error('  Message:', error.message);
+          console.error('  Code:', error.code);
+          console.error('  Database path:', dbPath);
+          console.error('  Attempt:', attempt + 1, 'of', retries + 1);
+          console.error('');
+          console.error('ROOT CAUSE: File system permissions or concurrent access issue');
+          console.error('');
+          console.error('IMMEDIATE ACTION REQUIRED:');
+          console.error('  1. Move project out of /root to user-accessible path:');
+          console.error('     sudo mv /root/smansada-hotspot-manager /home/$(whoami)/hotspot-manager');
+          console.error('  2. Fix ownership: sudo chown -R $(whoami):$(whoami) /home/$(whoami)/hotspot-manager');
+          console.error('  3. Fix permissions: sudo chmod -R 775 /home/$(whoami)/hotspot-manager');
+          console.error('  4. Remove journal files: rm -f hotspot.db-journal hotspot.db-wal hotspot.db-shm');
+          console.error('  5. Set journal mode: sqlite3 hotspot.db "PRAGMA journal_mode=DELETE;"');
+          console.error('  6. Update PM2: pm2 delete smansada-hotspot && cd /home/$(whoami)/hotspot-manager && pm2 start ecosystem.config.js');
+          console.error('  7. See PERMISSIONS_WARNING.md for detailed instructions');
+          console.error('='.repeat(60));
           
-          // Retry with exponential backoff for I/O errors
+          // Retry with minimal delay for I/O errors (don't block too long)
           if (attempt < retries) {
-            const delay = Math.min(100 * Math.pow(2, attempt), 1000); // Max 1 second
-            console.log(`[Settings.get] Retrying in ${delay}ms...`);
-            // Use synchronous sleep for better-sqlite3 (which is synchronous)
+            const delay = Math.min(50 * (attempt + 1), 200); // Max 200ms, shorter delays
+            console.log(`[Settings.get] Retrying in ${delay}ms... (Attempt ${attempt + 1}/${retries})`);
             const start = Date.now();
             while (Date.now() - start < delay) {
-              // Busy wait (better-sqlite3 is synchronous, so we can't use async/await)
+              // Busy wait
             }
             continue;
           }
@@ -162,18 +159,13 @@ class Settings {
       }
     }
     
-    // All retries failed - return default settings to prevent app crash
-    console.error('[Settings.get] All retry attempts failed, returning default settings');
-    return {
-      router_ip: '192.168.88.1',
-      router_port: 8728,
-      router_user: 'admin',
-      router_password_encrypted: '',
-      hotspot_dns_name: '',
-      telegram_bot_token: '',
-      telegram_chat_id: '',
-      school_name: 'SMAN 1 CONTOH'
-    };
+    // All retries failed - return empty object to signal critical failure
+    // This allows the app to render with "Disconnected" status instead of crashing
+    console.error('[Settings.get] ⚠️  CRITICAL: All retry attempts failed. Returning empty settings object.');
+    console.error('[Settings.get] Database I/O Failed - Application will continue with default/empty settings');
+    
+    // Return empty object to signal failure (caller should handle gracefully)
+    return {};
   }
 
   /**

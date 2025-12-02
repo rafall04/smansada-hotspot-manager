@@ -35,6 +35,8 @@ class AuthController {
    */
   static async login(req, res) {
     try {
+      if (res.headersSent) return;
+      
       const { username, password } = req.body;
 
       if (!username || !password) {
@@ -45,7 +47,25 @@ class AuthController {
         });
       }
 
-      const user = User.findByUsername(username);
+      // CRITICAL: Wrap database access in try-catch to handle I/O errors gracefully
+      let user;
+      try {
+        user = User.findByUsername(username);
+      } catch (dbError) {
+        console.error('[Login] Database error while fetching user:', dbError.message);
+        console.error('[Login] Error code:', dbError.code);
+        
+        if (dbError.code && (dbError.code.includes('SQLITE_IOERR') || dbError.code.includes('IOERR'))) {
+          console.error('[Login] ⚠️  SQLITE I/O ERROR - Database access failed');
+          return res.render('auth/login', {
+            title: 'Login',
+            error: 'Sistem mengalami masalah akses database. Silakan hubungi administrator atau cek log server.',
+            lockoutMessage: null
+          });
+        }
+        // For other errors, continue with normal flow (user not found)
+        user = null;
+      }
 
       if (!user) {
         return res.render('auth/login', {
@@ -58,7 +78,17 @@ class AuthController {
       const ipAddress =
         req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
 
-      if (LoginAttempt.isLockedOut(user.id, LOCKOUT_DURATION_SECONDS)) {
+      // CRITICAL: Wrap lockout check in try-catch to handle I/O errors
+      let isLocked = false;
+      try {
+        isLocked = LoginAttempt.isLockedOut(user.id, LOCKOUT_DURATION_SECONDS);
+      } catch (lockoutError) {
+        console.error('[Login] Error checking lockout status:', lockoutError.message);
+        // If lockout check fails, allow login attempt (fail open for availability)
+        isLocked = false;
+      }
+
+      if (isLocked) {
         return res.render('auth/login', {
           title: 'Login',
           error: null,
@@ -69,8 +99,16 @@ class AuthController {
       const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
       if (!passwordMatch) {
-        const attemptId = LoginAttempt.recordAttempt(user.id, ipAddress, 'FAILED');
-        const attemptCount = LoginAttempt.getAttemptCount(user.id, ATTEMPT_WINDOW_SECONDS);
+        // CRITICAL: Wrap attempt recording in try-catch to handle I/O errors
+        let attemptId = null;
+        let attemptCount = 0;
+        try {
+          attemptId = LoginAttempt.recordAttempt(user.id, ipAddress, 'FAILED');
+          attemptCount = LoginAttempt.getAttemptCount(user.id, ATTEMPT_WINDOW_SECONDS);
+        } catch (attemptError) {
+          console.error('[Login] Error recording login attempt:', attemptError.message);
+          // Continue with login flow even if attempt recording fails
+        }
 
         if (attemptCount >= MAX_FAILED_ATTEMPTS) {
           if (attemptId) {

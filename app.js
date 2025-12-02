@@ -108,12 +108,30 @@ app.use((req, res, next) => {
     warning: req.flash('warning')
   };
   // CRITICAL: Load settings with error handling to prevent middleware crash
-  // Settings.get() now has built-in retry logic and always returns defaults on error
+  // Settings.get() now has built-in retry logic and returns empty object on critical failure
   // This try-catch is extra safety layer
   try {
-    res.locals.settings = Settings.get();
+    const settings = Settings.get();
+    
+    // Check if Settings.get() returned empty object (critical failure)
+    if (!settings || Object.keys(settings).length === 0) {
+      console.warn('[Middleware] Settings.get() returned empty object - using defaults');
+      res.locals.settings = {
+        router_ip: '192.168.88.1',
+        router_port: 8728,
+        router_user: 'admin',
+        router_password_encrypted: '',
+        hotspot_dns_name: '',
+        telegram_bot_token: '',
+        telegram_chat_id: '',
+        school_name: 'SMAN 1 CONTOH',
+        _io_error: true // Flag to indicate I/O error
+      };
+    } else {
+      res.locals.settings = settings;
+    }
   } catch (error) {
-    // This should not happen as Settings.get() now returns defaults on error
+    // This should not happen as Settings.get() now returns empty object on error
     // But add extra safety to ensure middleware always continues
     console.error('[Middleware] Failed to load settings (unexpected):', error.message);
     console.error('[Middleware] Error code:', error.code);
@@ -125,7 +143,8 @@ app.use((req, res, next) => {
       hotspot_dns_name: '',
       telegram_bot_token: '',
       telegram_chat_id: '',
-      school_name: 'SMAN 1 CONTOH'
+      school_name: 'SMAN 1 CONTOH',
+      _io_error: true // Flag to indicate I/O error
     };
   }
   next();

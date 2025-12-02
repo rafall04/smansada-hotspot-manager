@@ -15,7 +15,7 @@ function formatMikrotikError(error) {
       error.message && (error.message.toLowerCase().includes('cannot log') || 
                        error.message.toLowerCase().includes('invalid password') ||
                        error.message.toLowerCase().includes('wrong password'))) {
-    return 'Gagal Login ke Mikrotik. Pastikan **Password Router API** yang tersimpan di halaman Settings sudah benar dan sesuai dengan user API di Mikrotik.';
+    return 'Gagal Login ke Mikrotik. Pastikan **Username dan Password Router API** yang tersimpan di halaman Settings sudah benar.';
   }
   return null;
 }
