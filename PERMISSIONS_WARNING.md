@@ -50,21 +50,21 @@ sudo chown -R root:root /root/smansada-hotspot-manager
 
 ```bash
 # Set directory permissions (read, write, execute for owner and group)
-sudo chmod -R 775 /path/to/project/smansada-hotspot-manager
+sudo chmod -R 775 /root/smansada-hotspot-manager
 
 # Set database file permissions (read, write for owner and group)
-sudo chmod 664 /path/to/project/smansada-hotspot-manager/hotspot.db
+sudo chmod 664 /root/smansada-hotspot-manager/hotspot.db
 ```
 
 ### Step 4: Verify Permissions
 
 ```bash
 # Check directory permissions
-ls -ld /path/to/project/smansada-hotspot-manager
+ls -ld /root/smansada-hotspot-manager
 # Should show: drwxrwxr-x (775)
 
 # Check database file permissions
-ls -l /path/to/project/smansada-hotspot-manager/hotspot.db
+ls -l /root/smansada-hotspot-manager/hotspot.db
 # Should show: -rw-rw-r-- (664)
 ```
 

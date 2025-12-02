@@ -229,6 +229,26 @@ class AdminController {
     try {
       const settings = Settings.get();
 
+      // Handle empty settings object (critical I/O failure)
+      if (!settings || Object.keys(settings).length === 0) {
+        console.warn('[Settings Page] Settings.get() returned empty object - using defaults');
+        return res.render('admin/settings', {
+          title: 'Router Settings',
+          settings: {
+            router_ip: '192.168.88.1',
+            router_port: 8728,
+            router_user: 'admin',
+            router_password: '',
+            telegram_bot_token: '',
+            telegram_chat_id: '',
+            hotspot_dns_name: '',
+            school_name: 'SMAN 1 CONTOH'
+          },
+          error: '⚠️ Peringatan: Sistem mendeteksi kegagalan I/O database. Pengaturan mungkin tidak tersimpan dengan benar. Cek izin file server!',
+          success: null
+        });
+      }
+
       let displayPassword = '';
       if (settings.router_password_encrypted && settings.router_password_encrypted.trim() !== '') {
         try {
@@ -401,10 +421,14 @@ class AdminController {
         if (dbError.code === 'SQLITE_IOERR_DELETE_NOENT' || dbError.code === 'SQLITE_IOERR') {
           req.flash('error', 'Gagal menyimpan settings: Masalah permission database. Lihat log server untuk instruksi perbaikan.');
           console.error('\n⚠️  CRITICAL: Database permission error detected!');
-          console.error('   Please run the following commands on your Ubuntu server:');
-          console.error('   sudo chown -R $(whoami):$(whoami) /root/smansada-hotspot-manager');
-          console.error('   sudo chmod -R 775 /root/smansada-hotspot-manager');
-          console.error('   npm run setup-db\n');
+          console.error('   CRITICAL EXTERNAL ACTION REQUIRED:');
+          console.error('   1. Move project out of /root to user-accessible path:');
+          console.error('      sudo mv /root/smansada-hotspot-manager /home/$(whoami)/hotspot-manager');
+          console.error('   2. Fix ownership: sudo chown -R $(whoami):$(whoami) /home/$(whoami)/hotspot-manager');
+          console.error('   3. Fix permissions: sudo chmod -R 775 /home/$(whoami)/hotspot-manager');
+          console.error('   4. Remove journal files: rm -f hotspot.db-journal hotspot.db-wal hotspot.db-shm');
+          console.error('   5. Set journal mode: sqlite3 hotspot.db "PRAGMA journal_mode=DELETE;"');
+          console.error('   6. Update PM2: pm2 delete smansada-hotspot && cd /home/$(whoami)/hotspot-manager && pm2 start ecosystem.config.js\n');
         } else {
           req.flash('error', 'Gagal menyimpan settings: ' + dbError.message);
         }
@@ -428,9 +452,14 @@ class AdminController {
    */
   static async usersPage(req, res) {
     try {
+      if (res.headersSent) return;
+      
       // Fetch only non-admin users (Guru/Normal users)
       const allUsers = User.findAll();
       const users = (allUsers || []).filter(user => user.role !== 'admin');
+      
+      if (res.headersSent) return;
+      
       res.render('admin/users', {
         title: 'Manajemen Akun Guru & Hotspot',
         users: users || [],
@@ -439,12 +468,29 @@ class AdminController {
         success: req.query.success || null
       });
     } catch (error) {
+      if (res.headersSent) return;
+      
       console.error('Users page error:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
+      // Enhanced error message for I/O errors
+      let errorMessage = 'Gagal memuat data user';
+      if (error.code && (error.code.includes('SQLITE_IOERR') || error.code.includes('IOERR'))) {
+        errorMessage = 'Gagal memuat data: Masalah I/O database. File system permissions or concurrent access issue. Lihat log server untuk detail.';
+        console.error('='.repeat(60));
+        console.error('⚠️  SQLITE I/O ERROR in usersPage');
+        console.error('='.repeat(60));
+        console.error('This indicates a database access issue.');
+        console.error('Please check file permissions and journal mode.');
+        console.error('='.repeat(60));
+      }
+      
       res.render('admin/users', {
         title: 'Manajemen Akun Guru & Hotspot',
         users: [],
         session: req.session || {},
-        error: 'Gagal memuat data user',
+        error: errorMessage,
         success: null
       });
     }

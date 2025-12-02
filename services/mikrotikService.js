@@ -28,6 +28,17 @@ class MikrotikService {
   static getRouterConfig() {
     const settings = Settings.get();
 
+    // Handle empty settings object (critical I/O failure)
+    if (!settings || Object.keys(settings).length === 0) {
+      console.warn('[MikrotikService] Settings.get() returned empty object - using defaults');
+      return {
+        host: '192.168.88.1',
+        port: 8728,
+        user: 'admin',
+        password: 'admin'
+      };
+    }
+
     let routerPassword = 'admin';
     if (settings.router_password_encrypted && settings.router_password_encrypted.trim() !== '') {
       const decrypted = cryptoHelper.decrypt(settings.router_password_encrypted);

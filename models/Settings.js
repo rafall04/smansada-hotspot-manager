@@ -54,11 +54,12 @@ function sleep(ms) {
 
 class Settings {
   /**
-   * Get settings with simplified retry logic for transient I/O errors
-   * @param {number} retries - Number of retry attempts (default: 2, reduced to prevent blocking)
-   * @returns {Object} Settings object or empty object on critical failure
+   * Get settings with simplified retry logic (non-blocking)
+   * Returns empty object on persistent failure to allow graceful degradation
+   * @param {number} retries - Number of retry attempts (default: 1, minimal retry)
+   * @returns {Object} Settings object or empty object on failure
    */
-  static get(retries = 2) {
+  static get(retries = 1) {
     let lastError = null;
     
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -140,10 +141,10 @@ class Settings {
           console.error('  7. See PERMISSIONS_WARNING.md for detailed instructions');
           console.error('='.repeat(60));
           
-          // Retry with minimal delay for I/O errors (don't block too long)
+          // Single retry with minimal delay (100ms) to avoid blocking
           if (attempt < retries) {
-            const delay = Math.min(50 * (attempt + 1), 200); // Max 200ms, shorter delays
-            console.log(`[Settings.get] Retrying in ${delay}ms... (Attempt ${attempt + 1}/${retries})`);
+            const delay = 100;
+            console.log(`[Settings.get] Retrying once in ${delay}ms...`);
             const start = Date.now();
             while (Date.now() - start < delay) {
               // Busy wait
