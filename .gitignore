@@ -38,6 +38,10 @@ test_*.js
 *.tar
 *.tar.gz
 
+# Database backups
+backups/
+*.db.backup*
+
 # Debug documentation (optional - uncomment if you want to exclude)
 # DEBUG_*.md
 # FIX_*.md

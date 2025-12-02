@@ -2,11 +2,23 @@ const Database = require('better-sqlite3');
 const path = require('path');
 
 const dbPath = path.join(__dirname, '..', 'hotspot.db');
-const db = new Database(dbPath);
+
+// Create database connection with error handling
+let db;
+try {
+  db = new Database(dbPath, {
+    timeout: 5000,
+    verbose: process.env.NODE_ENV === 'development' ? console.log : null
+  });
+} catch (error) {
+  console.error('[Settings] Failed to initialize database connection:', error.message);
+  throw error;
+}
 
 class Settings {
   static get() {
-    const result = db.prepare('SELECT * FROM settings WHERE id = 1').get();
+    try {
+      const result = db.prepare('SELECT * FROM settings WHERE id = 1').get();
 
     const columns = db.prepare('PRAGMA table_info(settings)').all();
     const columnNames = columns.map((col) => col.name);
