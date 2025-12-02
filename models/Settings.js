@@ -62,10 +62,27 @@ class Settings {
         school_name: hasSchoolName ? (result.school_name || 'SMAN 1 CONTOH') : 'SMAN 1 CONTOH'
       };
     }
+    } catch (error) {
+      console.error('[Settings.get] Database error:', error.message);
+      console.error('[Settings.get] Error code:', error.code);
+      
+      // Return default settings on error to prevent app crash
+      return {
+        router_ip: '192.168.88.1',
+        router_port: 8728,
+        router_user: 'admin',
+        router_password_encrypted: '',
+        hotspot_dns_name: '',
+        telegram_bot_token: '',
+        telegram_chat_id: '',
+        school_name: 'SMAN 1 CONTOH'
+      };
+    }
   }
 
   static update(data) {
-    const existing = db.prepare('SELECT id FROM settings WHERE id = 1').get();
+    try {
+      const existing = db.prepare('SELECT id FROM settings WHERE id = 1').get();
     const columns = db.prepare('PRAGMA table_info(settings)').all();
     const columnNames = columns.map((col) => col.name);
 
