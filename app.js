@@ -122,13 +122,54 @@ app.use((req, res, next) => {
 const routes = require('./routes');
 app.use('/', routes);
 
+// CRITICAL: Global error handler to catch unhandled errors
+// This prevents SQLITE_IOERR from crashing the entire application
 app.use((err, req, res, _next) => {
   console.error('Unhandled error:', err);
-  res.status(500).render('error', {
-    title: 'Error',
-    message: 'Terjadi kesalahan pada server',
-    error: process.env.NODE_ENV === 'development' ? err : {}
-  });
+  
+  // Enhanced logging for SQLITE_IOERR
+  if (err.code && (err.code.includes('SQLITE_IOERR') || err.code.includes('IOERR'))) {
+    console.error('='.repeat(60));
+    console.error('⚠️  UNHANDLED SQLITE I/O ERROR IN REQUEST');
+    console.error('='.repeat(60));
+    console.error('Error:', err.message);
+    console.error('Code:', err.code);
+    console.error('Path:', req.path);
+    console.error('Method:', req.method);
+    console.error('='.repeat(60));
+  }
+  
+  if (!res.headersSent) {
+    // Don't send error details to client in production
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? `Internal Server Error: ${err.message}` 
+      : 'Internal Server Error';
+    res.status(500).render('error', {
+      title: 'Error',
+      message: 'Terjadi kesalahan pada server',
+      error: process.env.NODE_ENV === 'development' ? err : {}
+    });
+  }
+});
+
+// CRITICAL: Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  if (reason && reason.code && (reason.code.includes('SQLITE_IOERR') || reason.code.includes('IOERR'))) {
+    console.error('⚠️  SQLITE I/O ERROR in unhandled promise rejection');
+    console.error('This indicates a database access issue. Check permissions and journal mode.');
+  }
+});
+
+// CRITICAL: Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  if (error.code && (error.code.includes('SQLITE_IOERR') || error.code.includes('IOERR'))) {
+    console.error('⚠️  SQLITE I/O ERROR in uncaught exception');
+    console.error('Application will continue but database operations may fail.');
+    console.error('Please fix file permissions and restart the application.');
+  }
+  // Don't exit - let the application continue with error handling
 });
 
 app.use((req, res) => {
