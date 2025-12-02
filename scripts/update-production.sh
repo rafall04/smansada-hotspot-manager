@@ -82,6 +82,10 @@ if [ -n "$GIT_STATUS" ]; then
     echo "Resetting uncommitted changes (keeping database)..."
     git reset --hard HEAD
     git clean -fd --exclude="hotspot.db" --exclude="backups/" --exclude="logs/" --exclude="node_modules/" --exclude=".env"
+    
+    # Restore execute permissions for shell scripts (git doesn't preserve chmod +x)
+    echo "Restoring execute permissions for scripts..."
+    chmod +x scripts/*.sh 2>/dev/null || true
     echo "✓ Uncommitted changes reset"
     echo ""
 else
@@ -178,6 +182,9 @@ if command -v pm2 &> /dev/null; then
     echo ""
 fi
 
+# Restore execute permissions (in case they were lost during git reset)
+chmod +x scripts/*.sh 2>/dev/null || true
+
 # Summary
 echo "=========================================="
 echo "Update Complete"
@@ -185,6 +192,7 @@ echo "=========================================="
 echo ""
 echo "✓ Database backed up to: $BACKUP_FILE"
 echo "✓ Application updated and restarted"
+echo "✓ Script permissions restored"
 echo ""
 echo "Next steps:"
 echo "  1. Check application logs: pm2 logs smansada-hotspot"
