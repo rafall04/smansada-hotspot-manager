@@ -350,9 +350,27 @@ class AdminController {
       };
 
       // CRITICAL: Save to database with error handling
+      // Verify that router_password_encrypted is included in updateData
+      if (!updateData.router_password_encrypted || updateData.router_password_encrypted.trim() === '') {
+        console.error('[Settings] CRITICAL: router_password_encrypted is empty before save!');
+        req.flash('error', 'Gagal menyimpan: Password router tidak dapat dienkripsi');
+        return res.redirect('/admin/settings');
+      }
+      
       try {
-        Settings.update(updateData);
+        const updateResult = Settings.update(updateData);
         console.log('[Settings] Router and notification settings updated successfully');
+        console.log('[Settings] Update result:', updateResult.changes, 'rows affected');
+        
+        // Verify persistence by reading back (optional, for debugging)
+        if (process.env.NODE_ENV === 'development') {
+          const verifySettings = Settings.get();
+          if (verifySettings.router_password_encrypted !== updateData.router_password_encrypted) {
+            console.warn('[Settings] WARNING: Password may not have persisted correctly');
+          } else {
+            console.log('[Settings] ✓ Password persistence verified');
+          }
+        }
       } catch (dbError) {
         console.error('[Settings] Database write error:', dbError.message);
         console.error('[Settings] Error code:', dbError.code);

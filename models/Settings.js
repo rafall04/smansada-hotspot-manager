@@ -3,6 +3,22 @@ const path = require('path');
 
 const dbPath = path.join(__dirname, '..', 'hotspot.db');
 
+/**
+ * ⚠️ CRITICAL: File System Permissions Requirement
+ * ===============================================
+ * This application MUST be run under a Linux user with proper file ownership.
+ * 
+ * The database file and directory MUST be writable by the user running Node.js/PM2.
+ * 
+ * If you encounter SQLITE_IOERR_DELETE_NOENT errors:
+ * 1. Check file ownership: ls -l hotspot.db
+ * 2. Fix ownership: sudo chown -R [USER]:[USER] /path/to/project
+ * 3. Fix permissions: sudo chmod -R 775 /path/to/project
+ * 4. See PERMISSIONS_WARNING.md for detailed instructions
+ * 
+ * Without proper permissions, settings will be lost and Mikrotik connections will fail.
+ */
+
 // Create database connection with error handling
 let db;
 try {
@@ -65,6 +81,26 @@ class Settings {
     } catch (error) {
       console.error('[Settings.get] Database error:', error.message);
       console.error('[Settings.get] Error code:', error.code);
+      
+      // CRITICAL: Enhanced diagnostic logging for SQLITE_IOERR
+      if (error.code && (error.code.includes('SQLITE_IOERR') || error.code.includes('IOERR'))) {
+        console.error('='.repeat(60));
+        console.error('⚠️  CRITICAL: SQLITE I/O ERROR DETECTED');
+        console.error('='.repeat(60));
+        console.error('Full error details:');
+        console.error('  Message:', error.message);
+        console.error('  Code:', error.code);
+        console.error('  Database path:', dbPath);
+        console.error('');
+        console.error('ROOT CAUSE: File system permissions issue');
+        console.error('');
+        console.error('IMMEDIATE ACTION REQUIRED:');
+        console.error('  1. Check file ownership: ls -l', dbPath);
+        console.error('  2. Fix ownership: sudo chown -R $(whoami):$(whoami) /path/to/project');
+        console.error('  3. Fix permissions: sudo chmod -R 775 /path/to/project');
+        console.error('  4. See PERMISSIONS_WARNING.md for detailed instructions');
+        console.error('='.repeat(60));
+      }
       
       // Return default settings on error to prevent app crash
       return {

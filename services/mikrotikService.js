@@ -3,6 +3,23 @@ const Settings = require('../models/Settings');
 const cryptoHelper = require('../utils/cryptoHelper');
 const { sendTelegramMessage, escapeHtml } = require('./notificationService');
 
+/**
+ * Helper function to detect and format CANTLOGIN errors
+ * @param {Error} error - The error object from Mikrotik API
+ * @returns {string|null} - User-friendly error message or null if not CANTLOGIN
+ */
+function formatMikrotikError(error) {
+  // Check for CANTLOGIN error (authentication failure)
+  if (error.errno === 'CANTLOGIN' || 
+      error.message && error.message.includes('CANTLOGIN') ||
+      error.message && (error.message.toLowerCase().includes('cannot log') || 
+                       error.message.toLowerCase().includes('invalid password') ||
+                       error.message.toLowerCase().includes('wrong password'))) {
+    return 'Gagal Login ke Mikrotik. Pastikan **Password Router API** yang tersimpan di halaman Settings sudah benar dan sesuai dengan user API di Mikrotik.';
+  }
+  return null;
+}
+
 class MikrotikService {
   /**
    * Get router configuration from database
@@ -69,6 +86,12 @@ class MikrotikService {
       conn.close();
       return { success: true, message: 'Koneksi berhasil' };
     } catch (error) {
+      // Check for CANTLOGIN error first (most critical)
+      const cantLoginMessage = formatMikrotikError(error);
+      if (cantLoginMessage) {
+        return { success: false, message: cantLoginMessage };
+      }
+      
       // Provide clear error message for connection failures
       let userFriendlyMessage = 'Koneksi ke Router Gagal. Cek Sandi/IP Router.';
       
@@ -160,6 +183,10 @@ class MikrotikService {
       conn.close();
       return { success: true, message: 'User hotspot berhasil diperbarui' };
     } catch (error) {
+      const cantLoginMessage = formatMikrotikError(error);
+      if (cantLoginMessage) {
+        throw new Error(cantLoginMessage);
+      }
       throw new Error(`Gagal memperbarui user hotspot: ${error.message}`);
     }
   }
@@ -188,6 +215,10 @@ class MikrotikService {
         message: `Berhasil memutus ${activeSessions.length} sesi aktif`
       };
     } catch (error) {
+      const cantLoginMessage = formatMikrotikError(error);
+      if (cantLoginMessage) {
+        throw new Error(cantLoginMessage);
+      }
       throw new Error(`Gagal memutus koneksi: ${error.message}`);
     }
   }
@@ -218,6 +249,10 @@ class MikrotikService {
         message: 'Session berhasil dihapus'
       };
     } catch (error) {
+      const cantLoginMessage = formatMikrotikError(error);
+      if (cantLoginMessage) {
+        throw new Error(cantLoginMessage);
+      }
       throw new Error(`Gagal memutus koneksi: ${error.message}`);
     }
   }
@@ -510,6 +545,10 @@ class MikrotikService {
 
       return profiles || [];
     } catch (error) {
+      const cantLoginMessage = formatMikrotikError(error);
+      if (cantLoginMessage) {
+        throw new Error(cantLoginMessage);
+      }
       throw new Error(`Gagal mengambil daftar profile: ${error.message}`);
     }
   }
@@ -565,6 +604,10 @@ class MikrotikService {
       conn.close();
       return { success: true, message: 'User hotspot berhasil dihapus' };
     } catch (error) {
+      const cantLoginMessage = formatMikrotikError(error);
+      if (cantLoginMessage) {
+        throw new Error(cantLoginMessage);
+      }
       throw new Error(`Gagal menghapus user hotspot: ${error.message}`);
     }
   }
