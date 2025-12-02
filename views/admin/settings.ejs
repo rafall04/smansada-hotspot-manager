@@ -194,71 +194,6 @@
                 </div>
             </div>
 
-            <!-- Database Backup & Restore Card -->
-            <div class="row justify-content-center mt-4">
-                <div class="col-lg-8">
-                    <div class="card card-clean border-warning">
-                        <div class="card-header bg-warning-subtle">
-                            <h5 class="mb-0"><i class="bi bi-database"></i> Database Backup & Restore</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i> <strong>Penting:</strong> Backup database sebelum melakukan update kode atau perubahan besar. Database tidak di-track oleh git, jadi backup manual diperlukan.
-                            </div>
-
-                            <div class="row g-3">
-                                <!-- Download Database -->
-                                <div class="col-md-6">
-                                    <div class="card border-primary">
-                                        <div class="card-body text-center">
-                                            <i class="bi bi-download fs-1 text-primary mb-3"></i>
-                                            <h6 class="card-title">Download Database</h6>
-                                            <p class="card-text text-muted small">Unduh database saat ini sebagai backup</p>
-                                            <a href="/admin/settings/download-database" class="btn btn-primary btn-sm">
-                                                <i class="bi bi-download"></i> Download Database
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Upload/Restore Database -->
-                                <div class="col-md-6">
-                                    <div class="card border-danger">
-                                        <div class="card-body">
-                                            <i class="bi bi-upload fs-1 text-danger mb-3 d-block text-center"></i>
-                                            <h6 class="card-title text-center">Restore Database</h6>
-                                            <p class="card-text text-muted small text-center mb-3">Upload file database untuk restore</p>
-                                            
-                                            <form method="POST" action="/admin/settings/restore-database" enctype="multipart/form-data" id="restoreDatabaseForm">
-                                                <div class="mb-3">
-                                                    <input type="file" class="form-control form-control-sm" id="database_file" name="database_file" accept=".db,.sqlite,.sqlite3" required>
-                                                    <div class="form-text small">
-                                                        <i class="bi bi-exclamation-triangle text-warning"></i> Database saat ini akan di-backup otomatis sebelum restore
-                                                    </div>
-                                                </div>
-                                                <button type="submit" class="btn btn-danger btn-sm w-100" id="restoreBtn">
-                                                    <i class="bi bi-upload"></i> Restore Database
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mt-4">
-                                <h6 class="fw-semibold mb-2"><i class="bi bi-shield-check"></i> Keamanan:</h6>
-                                <ul class="small text-muted mb-0">
-                                    <li>Database tidak di-track oleh git (aman dari git stash/reset)</li>
-                                    <li>Backup otomatis dibuat sebelum restore</li>
-                                    <li>File database divalidasi sebelum restore</li>
-                                    <li>Integrity check dilakukan untuk memastikan database valid</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Submit Button -->
             <div class="row justify-content-center mt-4">
                 <div class="col-lg-8">
@@ -273,6 +208,71 @@
                 </div>
             </div>
         </form>
+
+        <!-- Database Backup & Restore Card (Outside main form to avoid nested forms) -->
+        <div class="row justify-content-center mt-4">
+            <div class="col-lg-8">
+                <div class="card card-clean border-warning">
+                    <div class="card-header bg-warning-subtle">
+                        <h5 class="mb-0"><i class="bi bi-database"></i> Database Backup & Restore</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> <strong>Penting:</strong> Backup database sebelum melakukan update kode atau perubahan besar. Database tidak di-track oleh git, jadi backup manual diperlukan.
+                        </div>
+
+                        <div class="row g-3">
+                            <!-- Download Database -->
+                            <div class="col-md-6">
+                                <div class="card border-primary">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-download fs-1 text-primary mb-3"></i>
+                                        <h6 class="card-title">Download Database</h6>
+                                        <p class="card-text text-muted small">Unduh database saat ini sebagai backup</p>
+                                        <a href="/admin/settings/download-database" class="btn btn-primary btn-sm">
+                                            <i class="bi bi-download"></i> Download Database
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Upload/Restore Database -->
+                            <div class="col-md-6">
+                                <div class="card border-danger">
+                                    <div class="card-body">
+                                        <i class="bi bi-upload fs-1 text-danger mb-3 d-block text-center"></i>
+                                        <h6 class="card-title text-center">Restore Database</h6>
+                                        <p class="card-text text-muted small text-center mb-3">Upload file database untuk restore</p>
+                                        
+                                        <form method="POST" action="/admin/settings/restore-database" enctype="multipart/form-data" id="restoreDatabaseForm">
+                                            <div class="mb-3">
+                                                <input type="file" class="form-control form-control-sm" id="database_file" name="database_file" accept=".db,.sqlite,.sqlite3" required>
+                                                <div class="form-text small">
+                                                    <i class="bi bi-exclamation-triangle text-warning"></i> Database saat ini akan di-backup otomatis sebelum restore
+                                                </div>
+                                            </div>
+                                            <button type="submit" class="btn btn-danger btn-sm w-100" id="restoreBtn">
+                                                <i class="bi bi-upload"></i> Restore Database
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <h6 class="fw-semibold mb-2"><i class="bi bi-shield-check"></i> Keamanan:</h6>
+                            <ul class="small text-muted mb-0">
+                                <li>Database tidak di-track oleh git (aman dari git stash/reset)</li>
+                                <li>Backup otomatis dibuat sebelum restore</li>
+                                <li>File database divalidasi sebelum restore</li>
+                                <li>Integrity check dilakukan untuk memastikan database valid</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
