@@ -9,7 +9,7 @@ const formatter = require('../utils/formatter');
 const path = require('path');
 const fs = require('fs');
 const csv = require('csv-parser');
-const { getDatabase } = require('../models/db');
+const { getDatabase, closeDatabase } = require('../models/db');
 
 const ACTION_OPTIONS = ['LOGIN', 'LOGOUT', 'UPDATE_SETTINGS', 'DELETE_USER', 'CREATE_USER', 'KICK_SESSION'];
 
@@ -1781,6 +1781,157 @@ class AdminController {
           usersWithSessions: []
         }
       });
+    }
+  }
+
+  /**
+   * Download Database Backup
+   * Allows admin to download current database as backup
+   */
+  static downloadDatabase(req, res) {
+    if (res.headersSent) return;
+
+    try {
+      const dbPath = path.join(__dirname, '..', 'hotspot.db');
+
+      if (!fs.existsSync(dbPath)) {
+        req.flash('error', 'Database file tidak ditemukan');
+        return res.redirect('/admin/settings');
+      }
+
+      // Create backup before download
+      const backupDir = path.join(__dirname, '..', 'backups');
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const backupPath = path.join(backupDir, `hotspot_${timestamp}.db`);
+      fs.copyFileSync(dbPath, backupPath);
+
+      logActivity(req, 'BACKUP_DATABASE', 'Database downloaded via admin panel');
+
+      const dbStats = fs.statSync(dbPath);
+      const filename = `hotspot_backup_${timestamp}.db`;
+
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', dbStats.size);
+
+      const fileStream = fs.createReadStream(dbPath);
+      fileStream.pipe(res);
+
+      fileStream.on('error', (error) => {
+        console.error('[DownloadDatabase] Stream error:', error);
+        if (!res.headersSent) {
+          req.flash('error', 'Gagal mengunduh database');
+          return res.redirect('/admin/settings');
+        }
+      });
+    } catch (error) {
+      if (res.headersSent) return;
+      console.error('[DownloadDatabase] Error:', error);
+      req.flash('error', 'Gagal mengunduh database: ' + error.message);
+      return res.redirect('/admin/settings');
+    }
+  }
+
+  /**
+   * Upload and Restore Database
+   * Allows admin to upload database file to restore
+   */
+  static async restoreDatabase(req, res) {
+    if (res.headersSent) return;
+
+    try {
+      if (!req.file) {
+        req.flash('error', 'File database tidak ditemukan. Silakan pilih file database (.db)');
+        return res.redirect('/admin/settings');
+      }
+
+      const uploadedFile = req.file;
+      const dbPath = path.join(__dirname, '..', 'hotspot.db');
+      const backupDir = path.join(__dirname, '..', 'backups');
+
+      // Verify uploaded file is valid SQLite database
+      try {
+        const Database = require('better-sqlite3');
+        const testDb = new Database(uploadedFile.path, { readonly: true });
+        const integrityCheck = testDb.pragma('integrity_check');
+        testDb.close();
+
+        if (integrityCheck && integrityCheck[0] && integrityCheck[0].integrity_check !== 'ok') {
+          fs.unlinkSync(uploadedFile.path);
+          req.flash('error', 'File database tidak valid atau corrupt. Integrity check gagal.');
+          return res.redirect('/admin/settings');
+        }
+      } catch (dbError) {
+        fs.unlinkSync(uploadedFile.path);
+        req.flash('error', 'File yang diupload bukan database SQLite yang valid: ' + dbError.message);
+        return res.redirect('/admin/settings');
+      }
+
+      // Create backup of current database before restore
+      if (fs.existsSync(dbPath)) {
+        if (!fs.existsSync(backupDir)) {
+          fs.mkdirSync(backupDir, { recursive: true });
+        }
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const backupPath = path.join(backupDir, `hotspot_before_restore_${timestamp}.db`);
+        fs.copyFileSync(dbPath, backupPath);
+        console.log('[RestoreDatabase] Backup created before restore:', backupPath);
+      }
+
+      // Close existing database connection before restore
+      try {
+        closeDatabase();
+        console.log('[RestoreDatabase] Database connection closed');
+      } catch (closeError) {
+        console.warn('[RestoreDatabase] Error closing database (may not be open):', closeError.message);
+      }
+
+      // Wait a moment for file handles to release
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Replace database with uploaded file
+      fs.copyFileSync(uploadedFile.path, dbPath);
+
+      // Fix permissions
+      try {
+        fs.chmodSync(dbPath, 0o664);
+      } catch (permError) {
+        console.warn('[RestoreDatabase] Could not set permissions:', permError.message);
+      }
+
+      // Clean up uploaded temp file
+      fs.unlinkSync(uploadedFile.path);
+
+      // Verify restored database
+      try {
+        const Database = require('better-sqlite3');
+        const verifyDb = new Database(dbPath, { readonly: true });
+        const verifyCheck = verifyDb.pragma('integrity_check');
+        verifyDb.close();
+
+        if (verifyCheck && verifyCheck[0] && verifyCheck[0].integrity_check !== 'ok') {
+          req.flash('error', 'Database yang di-restore tidak valid. Silakan coba lagi atau restore dari backup.');
+          return res.redirect('/admin/settings');
+        }
+      } catch (verifyError) {
+        console.error('[RestoreDatabase] Verification error:', verifyError);
+        req.flash('warning', 'Database di-restore, tetapi verifikasi gagal. Silakan cek manual.');
+      }
+
+      logActivity(req, 'RESTORE_DATABASE', 'Database restored via admin panel');
+
+      req.flash('success', 'Database berhasil di-restore! Aplikasi akan restart untuk menerapkan perubahan.');
+      return res.redirect('/admin/settings');
+    } catch (error) {
+      if (res.headersSent) return;
+      console.error('[RestoreDatabase] Error:', error);
+      req.flash('error', 'Gagal restore database: ' + error.message);
+      return res.redirect('/admin/settings');
     }
   }
 }

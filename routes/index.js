@@ -27,6 +27,19 @@ router.post(
   validators.validateAdminSettings,
   AdminController.runDiagnostics
 );
+router.get(
+  '/admin/settings/download-database',
+  isAuthenticated,
+  isAdmin,
+  AdminController.downloadDatabase
+);
+router.post(
+  '/admin/settings/restore-database',
+  isAuthenticated,
+  isAdmin,
+  require('../middlewares/dbUpload').single('database_file'),
+  AdminController.restoreDatabase
+);
 
 router.get('/admin/users', isAuthenticated, isAdmin, AdminController.usersPage);
 router.get('/admin/users/profiles', isAuthenticated, isAdmin, AdminController.getProfiles);
