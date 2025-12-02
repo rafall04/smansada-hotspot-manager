@@ -9,7 +9,6 @@ const { sendTelegramMessage, escapeHtml } = require('./notificationService');
  * @returns {string|null} - User-friendly error message or null if not CANTLOGIN
  */
 function formatMikrotikError(error) {
-  // Check for CANTLOGIN error (authentication failure)
   if (error.errno === 'CANTLOGIN' || 
       error.message && error.message.includes('CANTLOGIN') ||
       error.message && (error.message.toLowerCase().includes('cannot log') || 
@@ -28,7 +27,6 @@ class MikrotikService {
   static getRouterConfig() {
     const settings = Settings.get();
 
-    // Handle empty settings object (critical I/O failure)
     if (!settings || Object.keys(settings).length === 0) {
       console.warn('[MikrotikService] Settings.get() returned empty object - using defaults');
       return {
@@ -97,13 +95,11 @@ class MikrotikService {
       conn.close();
       return { success: true, message: 'Koneksi berhasil' };
     } catch (error) {
-      // Check for CANTLOGIN error first (most critical)
       const cantLoginMessage = formatMikrotikError(error);
       if (cantLoginMessage) {
         return { success: false, message: cantLoginMessage };
       }
       
-      // Provide clear error message for connection failures
       let userFriendlyMessage = 'Koneksi ke Router Gagal. Cek Sandi/IP Router.';
       
       if (error.message && error.message.includes('Koneksi ke Router Gagal')) {
@@ -390,15 +386,11 @@ class MikrotikService {
       const conn = this.createConnection();
       await this.connectWithTimeout(conn);
 
-      // Step 1: Fetch Hotspot Active Data
       const activeSessions = await conn.write('/ip/hotspot/active/print');
-      
-      // Step 2: Fetch DHCP Lease Data
       const dhcpLeases = await conn.write('/ip/dhcp-server/lease/print');
 
       conn.close();
 
-      // Step 3: Create IP to hostname map from DHCP leases
       const ipToHostnameMap = new Map();
       if (dhcpLeases && Array.isArray(dhcpLeases)) {
         for (const lease of dhcpLeases) {
@@ -410,7 +402,6 @@ class MikrotikService {
         }
       }
 
-      // Step 4: Correlate and merge data
       const detailedSessions = [];
       if (activeSessions && Array.isArray(activeSessions)) {
         for (const session of activeSessions) {
@@ -423,7 +414,9 @@ class MikrotikService {
             hostname: hostname || 'N/A',
             mac: session['mac-address'] || session['mac'] || 'N/A',
             uptime: session.uptime || '0s',
-            sessionId: session['.id'] || null
+            sessionId: session['.id'] || null,
+            'bytes-in': session['bytes-in'] || '0',
+            'bytes-out': session['bytes-out'] || '0'
           });
         }
       }
@@ -517,16 +510,13 @@ class MikrotikService {
       const conn = this.createConnection();
       await this.connectWithTimeout(conn);
 
-      // First try exact match (for old format)
       let users = await conn.write('/ip/hotspot/user/print', ['?comment=' + commentId]);
       
-      // If not found, search for comments containing the NIP (new format: "Nama - NIP:XXXX")
       if (!users || users.length === 0) {
         const allUsers = await conn.write('/ip/hotspot/user/print');
         if (allUsers && allUsers.length > 0) {
           users = allUsers.filter(user => {
             const comment = user.comment || '';
-            // Check if comment contains "NIP:commentId" or ends with commentId
             return comment.includes(`NIP:${commentId}`) || comment === commentId || comment.endsWith(`- NIP:${commentId}`);
           });
         }

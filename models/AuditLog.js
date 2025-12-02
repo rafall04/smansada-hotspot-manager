@@ -1,12 +1,9 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-
-const dbPath = path.join(__dirname, '..', 'hotspot.db');
-const db = new Database(dbPath);
+const { getDatabase } = require('./db');
 
 class AuditLog {
   static findAll(limit = 50) {
     try {
+      const db = getDatabase();
       return db
         .prepare(
           `
@@ -28,6 +25,7 @@ class AuditLog {
 
   static findByUserId(userId, limit = 50) {
     try {
+      const db = getDatabase();
       return db
         .prepare(
           `
@@ -50,6 +48,7 @@ class AuditLog {
 
   static deleteByUserId(userId) {
     try {
+      const db = getDatabase();
       db.prepare('DELETE FROM audit_logs WHERE user_id = ?').run(userId);
     } catch (error) {
       console.error('Error deleting audit logs by user:', error);

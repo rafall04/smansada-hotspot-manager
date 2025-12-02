@@ -3,7 +3,6 @@
  */
 function isAuthenticated(req, res, next) {
   if (req.session && req.session.userId) {
-    // Check for mandatory password change
     if (req.session.mustChangePassword) {
       const allowedPaths = ['/guru/initial-password-change', '/guru/update-initial-password', '/logout'];
       if (!allowedPaths.includes(req.path)) {
@@ -22,7 +21,6 @@ function isAdmin(req, res, next) {
   if (req.session && req.session.role === 'admin') {
     return next();
   }
-  // Jika bukan admin, redirect ke dashboard sesuai role
   if (req.session && req.session.userId) {
     return res.redirect('/guru/dashboard');
   }
@@ -36,7 +34,6 @@ function isGuru(req, res, next) {
   if (req.session && req.session.role === 'guru') {
     return next();
   }
-  // Jika bukan guru, redirect ke dashboard sesuai role
   if (req.session && req.session.role === 'admin') {
     return res.redirect('/admin/dashboard');
   }

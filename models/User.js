@@ -1,23 +1,23 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-
-const dbPath = path.join(__dirname, '..', 'hotspot.db');
-const db = new Database(dbPath);
+const { getDatabase } = require('./db');
 
 class User {
   static findAll() {
+    const db = getDatabase();
     return db.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
   }
 
   static findById(id) {
+    const db = getDatabase();
     return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   }
 
   static findByUsername(username) {
+    const db = getDatabase();
     return db.prepare('SELECT * FROM users WHERE username = ?').get(username);
   }
 
   static findByComment(comment) {
+    const db = getDatabase();
     const columns = db.prepare('PRAGMA table_info(users)').all();
     const columnNames = columns.map((col) => col.name);
 
@@ -30,6 +30,7 @@ class User {
   }
 
   static create(data) {
+    const db = getDatabase();
     const columns = db.prepare('PRAGMA table_info(users)').all();
     const columnNames = columns.map((col) => col.name);
 
@@ -68,8 +69,6 @@ class User {
       values.push(commentValue);
 
       if (commentCol && commentCol.notnull) {
-        // If we have a separate comment value (e.g. Name), use it, otherwise fallback to ID
-        // In new logic, mikrotik_comment should be the Name
         const realComment = data.mikrotik_comment || commentValue;
 
         if (!realComment) {
@@ -100,6 +99,7 @@ class User {
   }
 
   static update(id, data) {
+    const db = getDatabase();
     const columns = db.prepare('PRAGMA table_info(users)').all();
     const columnNames = columns.map((col) => col.name);
 
@@ -151,17 +151,19 @@ class User {
   }
 
   static delete(id) {
+    const db = getDatabase();
     return db.prepare('DELETE FROM users WHERE id = ?').run(id);
   }
 
   static countByRole(role) {
+    const db = getDatabase();
     return db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get(role).count;
   }
 
   static bulkCreate(users) {
     if (!users || users.length === 0) return;
 
-    // Get table info to check for legacy columns
+    const db = getDatabase();
     const columns = db.prepare('PRAGMA table_info(users)').all();
     const columnNames = columns.map((col) => col.name);
 
@@ -175,7 +177,6 @@ class User {
       'must_change_password'
     ];
 
-    // Add legacy mikrotik_comment if it exists
     if (columnNames.includes('mikrotik_comment')) {
       fields.push('mikrotik_comment');
     }
@@ -188,13 +189,9 @@ class User {
 
     const insertMany = db.transaction((usersToInsert) => {
       for (const user of usersToInsert) {
-        // Prepare user object with all required fields
         const userData = { ...user };
 
-        // Handle legacy column default
         if (columnNames.includes('mikrotik_comment')) {
-          // If mikrotik_comment is not provided, use empty string (if NOT NULL) or null
-          // We assume empty string is safe for legacy NOT NULL
           userData.mikrotik_comment = user.mikrotik_comment || '';
         }
 

@@ -87,18 +87,14 @@
               <div class="icon-wrapper bg-primary-subtle text-primary rounded-3 p-3">
                 <i class="bi bi-router fs-4"></i>
               </div>
-              <% if (systemResources) { %>
-                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Online</span>
-              <% } else { %>
-                <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill">Offline</span>
-              <% } %>
+              <span id="routerStatusBadge" class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">
+                <i class="bi bi-arrow-clockwise spin"></i> Loading...
+              </span>
             </div>
             <div>
               <small class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">Router Status</small>
-              <h3 class="mb-0 mt-1 fw-bold"><%= systemResources ? (systemResources['board-name'] || 'N/A') : 'Offline' %></h3>
-              <% if (systemResources) { %>
-                <small class="text-muted d-block mt-2"><%= systemResources.uptime || 'N/A' %></small>
-              <% } %>
+              <h3 class="mb-0 mt-1 fw-bold" id="routerStatusText">Loading...</h3>
+              <small class="text-muted d-block mt-2" id="routerUptime">-</small>
             </div>
           </div>
         </div>
@@ -132,7 +128,9 @@
             </div>
             <div>
               <small class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">Live Connections</small>
-              <h2 class="mb-0 mt-1 fw-bold"><%= totalActiveConnections || 0 %></h2>
+              <h2 class="mb-0 mt-1 fw-bold" id="totalConnections">
+                <i class="bi bi-arrow-clockwise spin"></i>
+              </h2>
             </div>
           </div>
         </div>
@@ -149,14 +147,10 @@
             </div>
             <div>
               <small class="text-muted text-uppercase fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px;">RAM Usage</small>
-              <% if (systemHealth) { %>
-                <h2 class="mb-0 mt-1 fw-bold"><%= systemHealth.memoryPercent %>%</h2>
-                <small class="text-muted d-block mt-2">
-                  <%= Math.round(systemHealth.usedMemory / 1024 / 1024) %> MB / <%= Math.round(systemHealth.totalMemory / 1024 / 1024) %> MB
-                </small>
-              <% } else { %>
-                <h2 class="mb-0 mt-1 fw-bold text-muted">-</h2>
-              <% } %>
+              <h2 class="mb-0 mt-1 fw-bold" id="ramUsage">
+                <i class="bi bi-arrow-clockwise spin"></i>
+              </h2>
+              <small class="text-muted d-block mt-2" id="ramDetails">-</small>
             </div>
           </div>
         </div>
@@ -180,64 +174,12 @@
                 <th>Uptime</th>
               </tr>
             </thead>
-            <tbody>
-              <% if (usersWithSessions && usersWithSessions.length > 0) { %>
-                <% 
-                  const displayUsers = usersWithSessions.slice(0, 10);
-                  displayUsers.forEach(user => { 
-                %>
-                  <tr>
-                    <td>
-                      <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-person-circle text-primary"></i>
-                        <strong><%= user.username %></strong>
-                      </div>
-                    </td>
-                    <td class="text-nowrap">
-                      <code class="bg-light px-2 py-1 rounded"><%= user.commentId %></code>
-                    </td>
-                    <td>
-                      <% if (user.status === 'online') { %>
-                        <span class="badge bg-success-subtle text-success">
-                          <i class="bi bi-circle-fill"></i> Online
-                        </span>
-                      <% } else { %>
-                        <span class="badge bg-secondary-subtle text-secondary">
-                          <i class="bi bi-circle"></i> Offline
-                        </span>
-                      <% } %>
-                    </td>
-                    <td class="text-nowrap">
-                      <% if (user.activeDevices > 0) { %>
-                        <a href="#" class="activeDeviceCountLink text-decoration-none" 
-                           data-comment-id="<%= user.commentId %>"
-                           title="Klik untuk melihat detail perangkat aktif">
-                          <span class="badge bg-info-subtle text-info">
-                            <%= user.activeDevices %> Device<%= user.activeDevices > 1 ? 's' : '' %>
-                          </span>
-                        </a>
-                      <% } else { %>
-                        <span class="text-muted">-</span>
-                      <% } %>
-                    </td>
-                    <td class="text-nowrap">
-                      <% if (user.status === 'online' && user.uptime !== '0s') { %>
-                        <span class="badge bg-primary-subtle text-primary">
-                          <i class="bi bi-clock"></i> <%= user.uptime %>
-                        </span>
-                      <% } else { %>
-                        <span class="text-muted">-</span>
-                      <% } %>
-                    </td>
-                  </tr>
-                <% }); %>
-              <% } else { %>
-                <tr>
-                  <td colspan="5" class="text-center text-muted py-4">
-                    <i class="bi bi-inbox"></i> Tidak ada data monitoring
-                  </td>
-                </tr>
-              <% } %>
+            <tbody id="monitoringTableBody">
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                  <i class="bi bi-arrow-clockwise spin"></i> Memuat data monitoring...
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -385,6 +327,139 @@
         popoverTriggerList.map(function(popoverTriggerEl) {
           return new bootstrap.Popover(popoverTriggerEl);
         });
+
+        // Load Dashboard Data (Mikrotik) asynchronously
+        function loadDashboardData() {
+          fetch('/admin/api/dashboard-data')
+            .then(response => response.json())
+            .then(data => {
+              if (data.success && data.data) {
+                updateDashboardUI(data.data);
+              } else {
+                showDashboardError(data.message || 'Gagal memuat data');
+              }
+            })
+            .catch(error => {
+              console.error('Error loading dashboard data:', error);
+              showDashboardError('Gagal memuat data dashboard');
+            });
+        }
+
+        function updateDashboardUI(data) {
+          // Update Router Status
+          const routerStatusBadge = document.getElementById('routerStatusBadge');
+          const routerStatusText = document.getElementById('routerStatusText');
+          const routerUptime = document.getElementById('routerUptime');
+
+          if (data.connectionTest && data.connectionTest.success) {
+            routerStatusBadge.className = 'badge bg-success-subtle text-success border border-success-subtle rounded-pill';
+            routerStatusBadge.innerHTML = 'Online';
+            if (data.systemResources) {
+              routerStatusText.textContent = data.systemResources['board-name'] || 'N/A';
+              routerUptime.textContent = data.systemResources.uptime || 'N/A';
+            } else {
+              routerStatusText.textContent = 'Online';
+              routerUptime.textContent = '-';
+            }
+          } else {
+            routerStatusBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill';
+            routerStatusBadge.innerHTML = 'Offline';
+            routerStatusText.textContent = 'Offline';
+            routerUptime.textContent = data.connectionTest?.message || 'Router tidak dapat diakses';
+          }
+
+          // Update Live Connections
+          const totalConnections = document.getElementById('totalConnections');
+          totalConnections.textContent = data.totalActiveConnections || 0;
+
+          // Update RAM Usage
+          const ramUsage = document.getElementById('ramUsage');
+          const ramDetails = document.getElementById('ramDetails');
+          if (data.systemHealth && data.systemHealth.totalMemory > 0) {
+            ramUsage.textContent = data.systemHealth.memoryPercent + '%';
+            ramUsage.className = 'mb-0 mt-1 fw-bold';
+            ramDetails.textContent = Math.round(data.systemHealth.usedMemory / 1024 / 1024) + ' MB / ' + Math.round(data.systemHealth.totalMemory / 1024 / 1024) + ' MB';
+          } else {
+            ramUsage.textContent = '-';
+            ramUsage.className = 'mb-0 mt-1 fw-bold text-muted';
+            ramDetails.textContent = '-';
+          }
+
+          // Update Monitoring Table
+          const tableBody = document.getElementById('monitoringTableBody');
+          if (data.usersWithSessions && data.usersWithSessions.length > 0) {
+            const displayUsers = data.usersWithSessions.slice(0, 10);
+            tableBody.innerHTML = displayUsers.map(user => {
+              const statusBadge = user.status === 'online' 
+                ? '<span class="badge bg-success-subtle text-success"><i class="bi bi-circle-fill"></i> Online</span>'
+                : '<span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-circle"></i> Offline</span>';
+              
+              const deviceBadge = user.activeDevices > 0
+                ? `<a href="#" class="activeDeviceCountLink text-decoration-none" data-comment-id="${user.commentId}" title="Klik untuk melihat detail perangkat aktif">
+                     <span class="badge bg-info-subtle text-info">${user.activeDevices} Device${user.activeDevices > 1 ? 's' : ''}</span>
+                   </a>`
+                : '<span class="text-muted">-</span>';
+              
+              const uptimeBadge = (user.status === 'online' && user.uptime !== '0s')
+                ? `<span class="badge bg-primary-subtle text-primary"><i class="bi bi-clock"></i> ${user.uptime}</span>`
+                : '<span class="text-muted">-</span>';
+
+              return `
+                <tr>
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <i class="bi bi-person-circle text-primary"></i>
+                      <strong>${user.username}</strong>
+                    </div>
+                  </td>
+                  <td class="text-nowrap">
+                    <code class="bg-light px-2 py-1 rounded">${user.commentId}</code>
+                  </td>
+                  <td>${statusBadge}</td>
+                  <td class="text-nowrap">${deviceBadge}</td>
+                  <td class="text-nowrap">${uptimeBadge}</td>
+                </tr>
+              `;
+            }).join('');
+          } else {
+            tableBody.innerHTML = `
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                  <i class="bi bi-inbox"></i> Tidak ada data monitoring
+                </td>
+              </tr>
+            `;
+          }
+        }
+
+        function showDashboardError(message) {
+          const routerStatusBadge = document.getElementById('routerStatusBadge');
+          const routerStatusText = document.getElementById('routerStatusText');
+          const routerUptime = document.getElementById('routerUptime');
+          const totalConnections = document.getElementById('totalConnections');
+          const ramUsage = document.getElementById('ramUsage');
+          const ramDetails = document.getElementById('ramDetails');
+          const tableBody = document.getElementById('monitoringTableBody');
+
+          routerStatusBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill';
+          routerStatusBadge.innerHTML = 'Error';
+          routerStatusText.textContent = 'Error';
+          routerUptime.textContent = message;
+          totalConnections.textContent = '-';
+          ramUsage.textContent = '-';
+          ramUsage.className = 'mb-0 mt-1 fw-bold text-muted';
+          ramDetails.textContent = '-';
+          tableBody.innerHTML = `
+            <tr>
+              <td colspan="5" class="text-center text-danger py-4">
+                <i class="bi bi-exclamation-triangle"></i> ${message}
+              </td>
+            </tr>
+          `;
+        }
+
+        // Load Dashboard Data
+        loadDashboardData();
 
         // Load Top Users data asynchronously
         const topUsersLoading = document.getElementById('topUsersLoading');
@@ -622,6 +697,8 @@
                     <th>Hostname</th>
                     <th class="text-nowrap">MAC Address</th>
                     <th class="text-nowrap">Uptime</th>
+                    <th class="text-nowrap">Download</th>
+                    <th class="text-nowrap">Upload</th>
                   </tr>
                 </thead>
                 <tbody id="sessionTableBody">
@@ -735,6 +812,16 @@
                   <td class="text-nowrap py-3">
                     <span class="badge bg-success-subtle text-success">
                       <i class="bi bi-clock"></i> ${escapeHtml(session.formattedUptime || '0s')}
+                    </span>
+                  </td>
+                  <td class="text-nowrap py-3">
+                    <span class="badge bg-info-subtle text-info">
+                      <i class="bi bi-download"></i> ${escapeHtml(session['bytes-out-formatted'] || '0 B')}
+                    </span>
+                  </td>
+                  <td class="text-nowrap py-3">
+                    <span class="badge bg-warning-subtle text-warning">
+                      <i class="bi bi-upload"></i> ${escapeHtml(session['bytes-in-formatted'] || '0 B')}
                     </span>
                   </td>
                 `;

@@ -17,13 +17,16 @@ class AuthController {
    * Login Page
    */
   static loginPage(req, res) {
+    if (res.headersSent) return;
+    
     if (req.session.userId) {
       if (req.session.role === 'admin') {
         return res.redirect('/admin/dashboard');
       }
       return res.redirect('/guru/dashboard');
     }
-    res.render('auth/login', {
+    
+    return res.render('auth/login', {
       title: 'Login',
       error: req.query.error || null,
       lockoutMessage: req.query.lockout || null
@@ -47,7 +50,6 @@ class AuthController {
         });
       }
 
-      // CRITICAL: Wrap database access in try-catch to handle I/O errors gracefully
       let user;
       try {
         user = User.findByUsername(username);
@@ -63,7 +65,6 @@ class AuthController {
             lockoutMessage: null
           });
         }
-        // For other errors, continue with normal flow (user not found)
         user = null;
       }
 
@@ -78,13 +79,11 @@ class AuthController {
       const ipAddress =
         req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
 
-      // CRITICAL: Wrap lockout check in try-catch to handle I/O errors
       let isLocked = false;
       try {
         isLocked = LoginAttempt.isLockedOut(user.id, LOCKOUT_DURATION_SECONDS);
       } catch (lockoutError) {
         console.error('[Login] Error checking lockout status:', lockoutError.message);
-        // If lockout check fails, allow login attempt (fail open for availability)
         isLocked = false;
       }
 
@@ -99,7 +98,6 @@ class AuthController {
       const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
       if (!passwordMatch) {
-        // CRITICAL: Wrap attempt recording in try-catch to handle I/O errors
         let attemptId = null;
         let attemptCount = 0;
         try {
@@ -107,7 +105,6 @@ class AuthController {
           attemptCount = LoginAttempt.getAttemptCount(user.id, ATTEMPT_WINDOW_SECONDS);
         } catch (attemptError) {
           console.error('[Login] Error recording login attempt:', attemptError.message);
-          // Continue with login flow even if attempt recording fails
         }
 
         if (attemptCount >= MAX_FAILED_ATTEMPTS) {
@@ -172,8 +169,25 @@ class AuthController {
 
       return res.redirect('/guru/dashboard');
     } catch (error) {
-      console.error('Login error:', error);
-      res.render('auth/login', {
+      if (res.headersSent) return;
+      
+      const executionContext = {
+        user: process.env.USER || 'unknown',
+        cwd: process.cwd(),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        errorCode: error.code,
+        errorMessage: error.message
+      };
+      
+      console.error('[Login] CRITICAL ERROR:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        context: executionContext
+      });
+      
+      return res.render('auth/login', {
         title: 'Login',
         error: 'Terjadi kesalahan saat login'
       });
@@ -210,9 +224,10 @@ class AuthController {
 
     req.session.destroy((err) => {
       if (err) {
-        console.error('Logout error:', err);
+        console.error('[Logout] Session destroy error:', err);
       }
-      res.redirect('/login');
+      if (res.headersSent) return;
+      return res.redirect('/login');
     });
   }
 }

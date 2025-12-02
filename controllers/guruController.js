@@ -49,6 +49,8 @@ class GuruController {
    * Dashboard Guru
    */
   static async dashboard(req, res) {
+    if (res.headersSent) return;
+    
     try {
       const user = User.findById(req.session.userId);
 
@@ -62,55 +64,42 @@ class GuruController {
         });
       }
 
-      let hotspotUser = null;
-      let activeSessions = [];
-      let deviceQuota = null;
-      let error = null;
-
-      try {
-        hotspotUser = await MikrotikService.getHotspotUserByComment(user.mikrotik_comment_id);
-
-        if (hotspotUser) {
-          activeSessions = await MikrotikService.getAllActiveSessions(hotspotUser.name);
-
-          activeSessions = activeSessions.map((session) => ({
-            ...session,
-            'bytes-in-formatted': formatBytes(session['bytes-in'] || '0'),
-            'bytes-out-formatted': formatBytes(session['bytes-out'] || '0')
-          }));
-
-          deviceQuota = await MikrotikService.getDeviceQuota(hotspotUser.name);
-        } else {
-          error =
-            'User hotspot tidak ditemukan di Mikrotik dengan Comment ID: ' +
-            user.mikrotik_comment_id;
-        }
-      } catch (mikrotikError) {
-        console.error('Mikrotik error:', mikrotikError);
-        error = 'Gagal terhubung ke Mikrotik: ' + mikrotikError.message;
-      }
-
       const settings = Settings.get();
       const hotspotDnsName = settings.hotspot_dns_name || settings.router_ip || '192.168.88.1';
-      let hotspotLoginUrl = null;
 
-      if (hotspotUser) {
-        const loginUrl = `http://${hotspotDnsName}/login?username=${encodeURIComponent(hotspotUser.name)}&password=${encodeURIComponent(hotspotUser.password || '')}`;
-        hotspotLoginUrl = loginUrl;
-      }
-
-      res.render('guru/dashboard', {
+      if (res.headersSent) return;
+      
+      return res.render('guru/dashboard', {
         title: 'Dashboard',
-        hotspotUser,
-        activeSessions,
-        hotspotLoginUrl,
-        deviceQuota: deviceQuota,
-        error: error || req.query.error || null,
+        hotspotUser: null,
+        activeSessions: [],
+        hotspotLoginUrl: null,
+        deviceQuota: null,
+        mikrotikCommentId: user.mikrotik_comment_id,
+        hotspotDnsName: hotspotDnsName,
+        error: req.query.error || null,
         success: req.query.success || null
       });
     } catch (error) {
-      console.error('Dashboard error:', error);
-      res.render('guru/dashboard', {
+      if (res.headersSent) return;
+      
+      const executionContext = {
+        user: process.env.USER || 'unknown',
+        cwd: process.cwd(),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        errorCode: error.code,
+        errorMessage: error.message
+      };
+      
+      console.error('[GuruDashboard] CRITICAL ERROR:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        context: executionContext
+      });
+      
+      return res.render('guru/dashboard', {
         title: 'Dashboard',
         hotspotUser: null,
         activeSessions: [],
@@ -124,6 +113,8 @@ class GuruController {
    * Update Hotspot Credentials
    */
   static async updateHotspotCredentials(req, res) {
+    if (res.headersSent) return;
+    
     try {
       const validationResponse = respondGuruValidationErrors(req, res, '/guru/dashboard');
       if (validationResponse) {
@@ -183,13 +174,32 @@ class GuruController {
         console.error('Kick session error (non-critical):', kickError);
       }
 
-      res.redirect(
+      if (res.headersSent) return;
+      
+      return res.redirect(
         '/guru/dashboard?success=' +
         encodeURIComponent('Kredensial hotspot berhasil diperbarui. Silakan gunakan data terbaru untuk login.')
       );
     } catch (error) {
-      console.error('Update password error:', error);
-      res.redirect('/guru/dashboard?error=' + encodeURIComponent(error.message));
+      if (res.headersSent) return;
+      
+      const executionContext = {
+        user: process.env.USER || 'unknown',
+        cwd: process.cwd(),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        errorCode: error.code,
+        errorMessage: error.message
+      };
+      
+      console.error('[UpdateHotspotCredentials] CRITICAL ERROR:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        context: executionContext
+      });
+      
+      return res.redirect('/guru/dashboard?error=' + encodeURIComponent(error.message));
     }
   }
 
@@ -197,18 +207,22 @@ class GuruController {
    * Settings Page for Guru
    */
   static settingsPage(req, res) {
+    if (res.headersSent) return;
+    
     try {
       const user = User.findById(req.session.userId);
 
-      res.render('guru/settings', {
+      return res.render('guru/settings', {
         title: 'Pengaturan Akun',
         user,
         error: req.query.error || null,
         success: req.query.success || null
       });
     } catch (error) {
-      console.error('Settings page error:', error);
-      res.render('guru/settings', {
+      if (res.headersSent) return;
+      
+      console.error('[GuruSettingsPage] Error:', error);
+      return res.render('guru/settings', {
         title: 'Pengaturan Akun',
         user: null,
         error: 'Gagal memuat data user',
@@ -221,6 +235,8 @@ class GuruController {
    * Update User Settings (Username & Password Web)
    */
   static async updateSettings(req, res) {
+    if (res.headersSent) return;
+    
     try {
       const { username, password, password_confirm } = req.body;
 
@@ -252,11 +268,15 @@ class GuruController {
       }
 
       User.update(user.id, updateData);
+      
+      if (res.headersSent) return;
 
-      res.redirect('/guru/settings?success=Pengaturan berhasil diperbarui');
+      return res.redirect('/guru/settings?success=Pengaturan berhasil diperbarui');
     } catch (error) {
-      console.error('Update settings error:', error);
-      res.redirect('/guru/settings?error=Gagal memperbarui pengaturan: ' + error.message);
+      if (res.headersSent) return;
+      
+      console.error('[UpdateSettings] Error:', error);
+      return res.redirect('/guru/settings?error=Gagal memperbarui pengaturan: ' + error.message);
     }
   }
 
@@ -265,6 +285,8 @@ class GuruController {
    * API endpoint for modal form
    */
   static async updateWebAccount(req, res) {
+    if (res.headersSent) return;
+    
     try {
       const { username, password } = req.body;
 
@@ -336,16 +358,35 @@ class GuruController {
       if (isApiRequest) {
         return res.status(200).json({ success: true, message: successMsg });
       }
-      res.redirect('/guru/dashboard?success=' + encodeURIComponent(successMsg));
+      
+      if (res.headersSent) return;
+      return res.redirect('/guru/dashboard?success=' + encodeURIComponent(successMsg));
     } catch (error) {
-      console.error('Update web account error:', error);
+      if (res.headersSent) return;
+      
+      const executionContext = {
+        user: process.env.USER || 'unknown',
+        cwd: process.cwd(),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        errorCode: error.code,
+        errorMessage: error.message
+      };
+      
+      console.error('[UpdateWebAccount] CRITICAL ERROR:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        context: executionContext
+      });
+      
       const errorMsg = 'Gagal memperbarui akun: ' + (error.message || 'Unknown error');
 
       const isApiRequest = req.headers.accept && req.headers.accept.includes('application/json');
       if (isApiRequest) {
         return res.status(500).json({ success: false, message: errorMsg });
       }
-      res.redirect('/guru/dashboard?error=' + encodeURIComponent(errorMsg));
+      return res.redirect('/guru/dashboard?error=' + encodeURIComponent(errorMsg));
     }
   }
 
@@ -353,6 +394,8 @@ class GuruController {
    * Kick Active Session
    */
   static async kickSession(req, res) {
+    if (res.headersSent) return;
+    
     try {
       const user = User.findById(req.session.userId);
 
@@ -370,10 +413,13 @@ class GuruController {
 
       logActivity(req, 'KICK_SESSION', `Hotspot username: ${hotspotUser.name}, All sessions`);
 
-      res.redirect('/guru/dashboard?success=Koneksi berhasil direset');
+      if (res.headersSent) return;
+      return res.redirect('/guru/dashboard?success=Koneksi berhasil direset');
     } catch (error) {
-      console.error('Kick session error:', error);
-      res.redirect('/guru/dashboard?error=' + encodeURIComponent(error.message));
+      if (res.headersSent) return;
+      
+      console.error('[KickSession] Error:', error);
+      return res.redirect('/guru/dashboard?error=' + encodeURIComponent(error.message));
     }
   }
 
@@ -421,14 +467,12 @@ class GuruController {
    * Initial Password Change Page
    */
   static initialPasswordChangePage(req, res) {
-    // Prevent access if not required
-    // We need to check DB again to be sure, or rely on session
     const user = User.findById(req.session.userId);
     if (!user || user.must_change_password !== 1) {
       return res.redirect('/guru/dashboard');
     }
 
-    res.render('guru/change_password_first_login', {
+    return res.render('guru/change_password_first_login', {
       error: req.query.error || null
     });
   }
@@ -437,6 +481,8 @@ class GuruController {
    * Update Initial Password
    */
   static async updateInitialPassword(req, res) {
+    if (res.headersSent) return;
+    
     try {
       const { password, password_confirm } = req.body;
       const user = User.findById(req.session.userId);
@@ -457,7 +503,6 @@ class GuruController {
         });
       }
 
-      // Update DB
       const passwordHash = await bcrypt.hash(password, 10);
       const cryptoHelper = require('../utils/cryptoHelper');
       const passwordEncrypted = cryptoHelper.encrypt(password);
@@ -469,14 +514,10 @@ class GuruController {
         must_change_password: 0
       });
 
-      // Update Mikrotik
       if (user.mikrotik_comment_id) {
         try {
           const hotspotUser = await MikrotikService.getHotspotUserByComment(user.mikrotik_comment_id);
           if (hotspotUser) {
-            // Update Mikrotik Password
-            // Note: updateHotspotUser takes (mikrotikId, username, password, commentId)
-            // We keep username same, update password
             await MikrotikService.updateHotspotUser(
               hotspotUser['.id'],
               hotspotUser.name,
@@ -484,26 +525,128 @@ class GuruController {
               user.mikrotik_comment_id
             );
 
-            // Kick active sessions to force re-login with new password
             await MikrotikService.kickActiveUser(hotspotUser.name);
           }
         } catch (mtError) {
           console.error('Failed to sync password to Mikrotik:', mtError);
-          // We continue even if Mikrotik sync fails? 
-          // Ideally we should warn, but user is already updated in DB.
-          // Let's just log it.
         }
       }
 
-      // Update Session
       req.session.mustChangePassword = false;
 
-      res.redirect('/guru/dashboard?success=' + encodeURIComponent('Password berhasil diubah. Selamat datang!'));
+      if (res.headersSent) return;
+      return res.redirect('/guru/dashboard?success=' + encodeURIComponent('Password berhasil diubah. Selamat datang!'));
 
     } catch (error) {
-      console.error('Initial password update error:', error);
-      res.render('guru/change_password_first_login', {
+      if (res.headersSent) return;
+      
+      const executionContext = {
+        user: process.env.USER || 'unknown',
+        cwd: process.cwd(),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        errorCode: error.code,
+        errorMessage: error.message
+      };
+      
+      console.error('[UpdateInitialPassword] CRITICAL ERROR:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        context: executionContext
+      });
+      
+      return res.render('guru/change_password_first_login', {
         error: 'Terjadi kesalahan: ' + error.message
+      });
+    }
+  }
+
+  /**
+   * Get Dashboard Data (Async - Non-blocking)
+   * Fetches Mikrotik data separately to avoid blocking dashboard load
+   */
+  static async getDashboardData(req, res) {
+    if (res.headersSent) return;
+
+    try {
+      const user = User.findById(req.session.userId);
+
+      if (!user || !user.mikrotik_comment_id) {
+        return res.json({
+          success: false,
+          message: 'Mikrotik Comment ID tidak ditemukan',
+          data: {
+            hotspotUser: null,
+            activeSessions: [],
+            deviceQuota: null,
+            hotspotLoginUrl: null
+          }
+        });
+      }
+
+      let hotspotUser = null;
+      let activeSessions = [];
+      let deviceQuota = null;
+      let error = null;
+
+      try {
+        hotspotUser = await MikrotikService.getHotspotUserByComment(user.mikrotik_comment_id);
+
+        if (hotspotUser) {
+          activeSessions = await MikrotikService.getAllActiveSessions(hotspotUser.name);
+
+          activeSessions = activeSessions.map((session) => ({
+            ...session,
+            'bytes-in-formatted': formatBytes(session['bytes-in'] || '0'),
+            'bytes-out-formatted': formatBytes(session['bytes-out'] || '0')
+          }));
+
+          deviceQuota = await MikrotikService.getDeviceQuota(hotspotUser.name);
+        } else {
+          error = 'User hotspot tidak ditemukan di Mikrotik dengan Comment ID: ' + user.mikrotik_comment_id;
+        }
+      } catch (mikrotikError) {
+        console.error('[GuruDashboardData] Mikrotik error:', mikrotikError);
+        error = 'Gagal terhubung ke Mikrotik: ' + mikrotikError.message;
+      }
+
+      const settings = Settings.get();
+      const hotspotDnsName = settings.hotspot_dns_name || settings.router_ip || '192.168.88.1';
+      let hotspotLoginUrl = null;
+
+      if (hotspotUser) {
+        const loginUrl = `http://${hotspotDnsName}/login?username=${encodeURIComponent(hotspotUser.name)}&password=${encodeURIComponent(hotspotUser.password || '')}`;
+        hotspotLoginUrl = loginUrl;
+      }
+
+      if (res.headersSent) return;
+
+      return res.json({
+        success: true,
+        data: {
+          hotspotUser,
+          activeSessions,
+          hotspotLoginUrl,
+          deviceQuota,
+          error
+        }
+      });
+    } catch (error) {
+      if (res.headersSent) return;
+
+      console.error('[GuruDashboardData] CRITICAL ERROR:', error);
+
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Gagal memuat data dashboard',
+        data: {
+          hotspotUser: null,
+          activeSessions: [],
+          deviceQuota: null,
+          hotspotLoginUrl: null,
+          error: 'Terjadi kesalahan: ' + error.message
+        }
       });
     }
   }

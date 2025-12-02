@@ -9,10 +9,8 @@ const formatter = require('../utils/formatter');
 const path = require('path');
 const fs = require('fs');
 const csv = require('csv-parser');
-const Database = require('better-sqlite3');
+const { getDatabase } = require('../models/db');
 
-const dbPath = path.join(__dirname, '..', 'hotspot.db');
-const dashboardDb = new Database(dbPath);
 const ACTION_OPTIONS = ['LOGIN', 'LOGOUT', 'UPDATE_SETTINGS', 'DELETE_USER', 'CREATE_USER', 'KICK_SESSION'];
 
 function respondValidationErrors(req, res, redirectPath) {
@@ -40,6 +38,8 @@ class AdminController {
    * Dashboard Admin with Real-time Monitoring
    */
   static async dashboard(req, res) {
+    if (res.headersSent) return;
+    
     try {
       const searchQuery = req.query.search ? req.query.search.trim() : '';
       let actionFilter = req.query.action_type ? req.query.action_type.trim().toUpperCase() : '';
@@ -47,153 +47,28 @@ class AdminController {
         actionFilter = '';
       }
 
-      let connectionTest = { success: false, message: 'Router offline' };
-      try {
-        connectionTest = await MikrotikService.testConnection();
-      } catch (error) {
-        console.error('Connection test failed:', error.message);
-      }
-
       const totalGuru = User.countByRole('guru');
       const allUsers = User.findAll().filter((u) => u.role === 'guru');
 
-      let systemResources = null;
-      let allActiveSessions = [];
-      let usersWithSessions = [];
+      const usersWithSessions = allUsers.map((user) => ({
+        id: user.id,
+        username: user.username,
+        commentId: user.mikrotik_comment_id || '-',
+        status: 'loading',
+        activeDevices: 0,
+        sessions: [],
+        uptime: '0s'
+      }));
 
-      if (connectionTest.success) {
-        try {
-          systemResources = await MikrotikService.getSystemResources();
-          allActiveSessions = await MikrotikService.getAllActiveHotspotSessions();
-
-          const sessionMap = new Map();
-          const usernameToCommentMap = new Map();
-
-          const uniqueUsernames = [
-            ...new Set(allActiveSessions.map((s) => s.user).filter(Boolean))
-          ];
-
-          for (const username of uniqueUsernames) {
-            try {
-              const hotspotUser = await MikrotikService.getHotspotUserByUsername(username);
-              if (hotspotUser && hotspotUser.comment) {
-                usernameToCommentMap.set(username, hotspotUser.comment);
-              }
-            } catch (error) {
-              console.error(`Error fetching user ${username}:`, error);
-            }
-          }
-
-          for (const session of allActiveSessions) {
-            const username = session.user || '';
-            if (!username) {
-              continue;
-            }
-
-            const commentId = usernameToCommentMap.get(username);
-            if (!commentId) {
-              continue;
-            }
-
-            if (!sessionMap.has(commentId)) {
-              sessionMap.set(commentId, []);
-            }
-
-            sessionMap.get(commentId).push({
-              ip: session['address'] || 'N/A',
-              mac: session['mac-address'] || 'N/A',
-              uptime: session.uptime || '0s',
-              username
-            });
-          }
-
-          usersWithSessions = allUsers.map((user) => {
-            try {
-              const commentId = user.mikrotik_comment_id;
-              const sessions = sessionMap.get(commentId) || [];
-
-              let longestUptime = '0s';
-              if (sessions.length > 0) {
-                const uptimes = sessions.map((s) => {
-                  const uptimeStr = s.uptime || '0s';
-                  return formatter.parseUptimeToSeconds(uptimeStr);
-                }).filter(s => !isNaN(s) && s >= 0);
-                if (uptimes.length > 0) {
-                  const maxSeconds = Math.max(...uptimes);
-                  longestUptime = formatter.formatUptime(maxSeconds);
-                }
-              }
-
-              return {
-                id: user.id,
-                username: user.username,
-                commentId: commentId || '-',
-                status: sessions.length > 0 ? 'online' : 'offline',
-                activeDevices: sessions.length,
-                sessions,
-                uptime: longestUptime
-              };
-            } catch (error) {
-              console.error(`Error processing user ${user.id}:`, error);
-              return {
-                id: user.id,
-                username: user.username,
-                commentId: user.mikrotik_comment_id || '-',
-                status: 'offline',
-                activeDevices: 0,
-                sessions: [],
-                uptime: '0s'
-              };
-            }
-          });
-        } catch (error) {
-          console.error('Error fetching Mikrotik data:', error);
-          usersWithSessions = allUsers.map((user) => ({
-            id: user.id,
-            username: user.username,
-            commentId: user.mikrotik_comment_id || '-',
-            status: 'offline',
-            activeDevices: 0,
-            sessions: [],
-            uptime: '0s'
-          }));
-        }
-      } else {
-        usersWithSessions = allUsers.map((user) => ({
-          id: user.id,
-          username: user.username,
-          commentId: user.mikrotik_comment_id || '-',
-          status: 'offline',
-          activeDevices: 0,
-          sessions: [],
-          uptime: '0s'
-        }));
-      }
-
-      const totalActiveConnections = allActiveSessions.length;
-      const systemHealth = systemResources
-        ? {
-          totalMemory: systemResources['total-memory'] || 0,
-          freeMemory: systemResources['free-memory'] || 0,
-          usedMemory: 0,
-          memoryPercent: 0
-        }
-        : null;
-
-      if (systemHealth && systemHealth.totalMemory > 0) {
-        systemHealth.usedMemory = systemHealth.totalMemory - systemHealth.freeMemory;
-        systemHealth.memoryPercent = Math.round(
-          (systemHealth.usedMemory / systemHealth.totalMemory) * 100
-        );
-      }
-
-      res.render('admin/dashboard', {
+      if (res.headersSent) return;
+      
+      return res.render('admin/dashboard', {
         title: 'Admin Dashboard',
-        connectionTest,
+        connectionTest: { success: false, message: 'Loading...' },
         totalGuru,
-        systemResources,
-        totalActiveConnections,
-        systemHealth,
+        systemResources: null,
+        totalActiveConnections: 0,
+        systemHealth: null,
         usersWithSessions,
         auditLogs: [],
         session: req.session || {},
@@ -204,9 +79,25 @@ class AdminController {
         actionOptions: ACTION_OPTIONS
       });
     } catch (error) {
-      console.error('Dashboard error:', error);
+      if (res.headersSent) return;
+      
+      const executionContext = {
+        user: process.env.USER || 'unknown',
+        cwd: process.cwd(),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        errorCode: error.code,
+        errorMessage: error.message
+      };
+      
+      console.error('[AdminDashboard] CRITICAL ERROR:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        context: executionContext
+      });
 
-      res.render('admin/dashboard', {
+      return res.render('admin/dashboard', {
         title: 'Admin Dashboard',
         connectionTest: { success: false, message: 'Error: ' + error.message },
         totalGuru: 0,
@@ -226,10 +117,11 @@ class AdminController {
    * Router Settings Page
    */
   static async settingsPage(req, res) {
+    if (res.headersSent) return;
+    
     try {
       const settings = Settings.get();
 
-      // Handle empty settings object (critical I/O failure)
       if (!settings || Object.keys(settings).length === 0) {
         console.warn('[Settings Page] Settings.get() returned empty object - using defaults');
         return res.render('admin/settings', {
@@ -268,15 +160,34 @@ class AdminController {
         hotspot_dns_name: settings.hotspot_dns_name || ''
       };
 
-      res.render('admin/settings', {
+      if (res.headersSent) return;
+      
+      return res.render('admin/settings', {
         title: 'Router Settings',
         settings: settingsWithPassword,
         error: req.query.error || null,
         success: req.query.success || null
       });
     } catch (error) {
-      console.error('Settings page error:', error);
-      res.render('admin/settings', {
+      if (res.headersSent) return;
+      
+      const executionContext = {
+        user: process.env.USER || 'unknown',
+        cwd: process.cwd(),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        errorCode: error.code,
+        errorMessage: error.message
+      };
+      
+      console.error('[SettingsPage] CRITICAL ERROR:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        context: executionContext
+      });
+      
+      return res.render('admin/settings', {
         title: 'Router Settings',
         settings: {
           router_ip: '192.168.88.1',
@@ -335,11 +246,9 @@ class AdminController {
 
       const { router_ip, router_port, router_user, router_password } = req.body;
 
-      // Get current settings to preserve existing password if new one is not provided
       const currentSettings = Settings.get();
       let routerPasswordEncrypted = currentSettings.router_password_encrypted || '';
 
-      // Encrypt new password if provided
       if (router_password && router_password.trim() !== '') {
         try {
           routerPasswordEncrypted = cryptoHelper.encrypt(router_password);
@@ -369,8 +278,6 @@ class AdminController {
         school_name: schoolName
       };
 
-      // CRITICAL: Save to database with error handling
-      // Verify that router_password_encrypted is included in updateData
       if (!updateData.router_password_encrypted || updateData.router_password_encrypted.trim() === '') {
         console.error('[Settings] CRITICAL: router_password_encrypted is empty before save!');
         req.flash('error', 'Gagal menyimpan: Password router tidak dapat dienkripsi');
@@ -382,12 +289,9 @@ class AdminController {
         console.log('[Settings] Router and notification settings updated successfully');
         console.log('[Settings] Update result:', updateResult.changes, 'rows affected');
         
-        // CRITICAL: Post-update verification - check if data can be read immediately
-        // This detects I/O errors that prevent data persistence
         try {
           const verifySettings = Settings.get();
           
-          // Check if Settings.get() returned empty object (critical I/O failure)
           if (!verifySettings || Object.keys(verifySettings).length === 0) {
             console.error('[Settings] ⚠️  CRITICAL: Settings.get() returned empty after successful update!');
             req.flash('warning', '⚠️ Peringatan Kritis: Pengaturan tersimpan, tetapi sistem mendeteksi kegagalan I/O. Data mungkin hilang saat restart. Cek izin file server!');
@@ -395,7 +299,6 @@ class AdminController {
             return res.redirect('/admin/settings');
           }
           
-          // Verify critical fields persisted correctly
           if (verifySettings.router_password_encrypted !== updateData.router_password_encrypted) {
             console.warn('[Settings] WARNING: Password may not have persisted correctly');
             req.flash('warning', '⚠️ Peringatan: Password mungkin tidak tersimpan dengan benar. Silakan cek kembali.');
@@ -403,7 +306,6 @@ class AdminController {
             console.log('[Settings] ✓ Post-update verification: Password persistence confirmed');
           }
         } catch (verifyError) {
-          // If verification fails, it's a critical I/O issue
           console.error('[Settings] ⚠️  CRITICAL: Post-update verification failed:', verifyError.message);
           console.error('[Settings] Error code:', verifyError.code);
           
@@ -417,7 +319,6 @@ class AdminController {
         console.error('[Settings] Database write error:', dbError.message);
         console.error('[Settings] Error code:', dbError.code);
         
-        // Check for permission errors
         if (dbError.code === 'SQLITE_IOERR_DELETE_NOENT' || dbError.code === 'SQLITE_IOERR') {
           req.flash('error', 'Gagal menyimpan settings: Masalah permission database. Lihat log server untuk instruksi perbaikan.');
           console.error('\n⚠️  CRITICAL: Database permission error detected!');
@@ -454,13 +355,12 @@ class AdminController {
     try {
       if (res.headersSent) return;
       
-      // Fetch only non-admin users (Guru/Normal users)
       const allUsers = User.findAll();
       const users = (allUsers || []).filter(user => user.role !== 'admin');
       
       if (res.headersSent) return;
       
-      res.render('admin/users', {
+      return res.render('admin/users', {
         title: 'Manajemen Akun Guru & Hotspot',
         users: users || [],
         session: req.session || {},
@@ -470,11 +370,22 @@ class AdminController {
     } catch (error) {
       if (res.headersSent) return;
       
-      console.error('Users page error:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
+      const executionContext = {
+        user: process.env.USER || 'unknown',
+        cwd: process.cwd(),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        errorCode: error.code,
+        errorMessage: error.message
+      };
       
-      // Enhanced error message for I/O errors
+      console.error('[UsersPage] CRITICAL ERROR:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        context: executionContext
+      });
+      
       let errorMessage = 'Gagal memuat data user';
       if (error.code && (error.code.includes('SQLITE_IOERR') || error.code.includes('IOERR'))) {
         errorMessage = 'Gagal memuat data: Masalah I/O database. File system permissions or concurrent access issue. Lihat log server untuk detail.';
@@ -486,7 +397,7 @@ class AdminController {
         console.error('='.repeat(60));
       }
       
-      res.render('admin/users', {
+      return res.render('admin/users', {
         title: 'Manajemen Akun Guru & Hotspot',
         users: [],
         session: req.session || {},
@@ -500,11 +411,15 @@ class AdminController {
    * Admin Management Page (Only Admin Users)
    */
   static async manageAdminsPage(req, res) {
+    if (res.headersSent) return;
+    
     try {
-      // Fetch only admin users
       const allUsers = User.findAll();
       const users = (allUsers || []).filter(user => user.role === 'admin');
-      res.render('admin/manage_admins', {
+      
+      if (res.headersSent) return;
+      
+      return res.render('admin/manage_admins', {
         title: 'Manajemen Akun Admin',
         users: users || [],
         session: req.session || {},
@@ -512,8 +427,25 @@ class AdminController {
         success: req.query.success || null
       });
     } catch (error) {
-      console.error('Manage admins page error:', error);
-      res.render('admin/manage_admins', {
+      if (res.headersSent) return;
+      
+      const executionContext = {
+        user: process.env.USER || 'unknown',
+        cwd: process.cwd(),
+        nodeVersion: process.version,
+        timestamp: new Date().toISOString(),
+        errorCode: error.code,
+        errorMessage: error.message
+      };
+      
+      console.error('[ManageAdminsPage] CRITICAL ERROR:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        context: executionContext
+      });
+      
+      return res.render('admin/manage_admins', {
         title: 'Manajemen Akun Admin',
         users: [],
         session: req.session || {},
@@ -562,9 +494,7 @@ class AdminController {
 
       const verification = await MikrotikService.verifyCommentId(comment_id);
 
-      // Dynamic logic based on user_type
       if (user_type === 'existing') {
-        // For existing users: expect to find the comment ID
         if (verification.exists) {
           return res.json({
             success: true,
@@ -580,7 +510,6 @@ class AdminController {
           });
         }
       } else if (user_type === 'new') {
-        // For new users: expect NOT to find the comment ID
         if (verification.exists) {
           return res.json({
             success: false,
@@ -595,7 +524,6 @@ class AdminController {
           });
         }
       } else {
-        // Fallback: no user_type specified, use old behavior
         if (verification.exists) {
           return res.json({
             success: true,
@@ -630,7 +558,6 @@ class AdminController {
     }
 
     try {
-      // **ENFORCE SMART FALLBACK - MUST RUN BEFORE VALIDATION**
       if (!req.body.password || req.body.password.trim() === '') {
         req.body.password = req.body.username || '';
       }
@@ -837,10 +764,11 @@ class AdminController {
 
       const deletedUsername = user.username;
 
-      const deleteTransaction = dashboardDb.transaction(() => {
-        dashboardDb.prepare('DELETE FROM login_attempts WHERE user_id = ?').run(userId);
-        dashboardDb.prepare('DELETE FROM audit_logs WHERE user_id = ?').run(userId);
-        dashboardDb.prepare('DELETE FROM users WHERE id = ?').run(userId);
+      const db = getDatabase();
+      const deleteTransaction = db.transaction(() => {
+        db.prepare('DELETE FROM login_attempts WHERE user_id = ?').run(userId);
+        db.prepare('DELETE FROM audit_logs WHERE user_id = ?').run(userId);
+        db.prepare('DELETE FROM users WHERE id = ?').run(userId);
       });
 
       deleteTransaction();
@@ -872,28 +800,20 @@ class AdminController {
    * Create User (Guru/Normal Users Only)
    */
   static async createUser(req, res) {
-    // Check if response was already sent (guard against double responses)
     if (res.headersSent) {
       return;
     }
 
     try {
-      // **ENFORCE SMART FALLBACK - MUST RUN BEFORE VALIDATION**
-      // If password is not provided (empty string), use the username as the default password.
-      // This ensures validation always sees a populated field.
       if (!req.body.password || req.body.password.trim() === '') {
         req.body.password = req.body.username || '';
       }
-
-      // If hotspot_password is not provided and user_type is 'new', it will fallback later
-      // to the finalized password (which may be username if password was empty)
 
       const validationResponse = respondValidationErrors(req, res, '/admin/users');
       if (validationResponse) {
         return validationResponse;
       }
 
-      // Double-check after validation (in case validation sent response)
       if (res.headersSent) {
         return;
       }
@@ -908,20 +828,14 @@ class AdminController {
         hotspot_profile
       } = req.body;
 
-      // Stage 1: Final Web Password
-      // Password is now guaranteed to have a value (either from user input or fallback to username)
       const finalWebPassword = (password && password.trim() !== '') ? password.trim() : username;
 
-      // If mikrotik_comment_id is empty (though it's required in form), use username
       if (!mikrotik_comment_id || mikrotik_comment_id.trim() === '') {
         mikrotik_comment_id = username;
       }
 
-      // Use mikrotik_comment_id directly as the Mikrotik comment
-      // This is the single source of truth for the unique identifier
       const mikrotikComment = mikrotik_comment_id.trim();
 
-      // Guard check before each response
       if (res.headersSent) {
         return;
       }
@@ -932,7 +846,6 @@ class AdminController {
         return res.redirect('/admin/users');
       }
 
-      // Guard check before each response
       if (res.headersSent) {
         return;
       }
@@ -944,25 +857,20 @@ class AdminController {
       }
 
       if (user_type === 'new') {
-        // Stage 2: Determine Hotspot Credentials
-        // Hotspot Username falls back to Web Username
         const finalHotspotUsername = (hotspot_username && hotspot_username.trim() !== '') 
           ? hotspot_username.trim() 
           : username;
         
-        // Hotspot Password falls back to finalWebPassword (from Stage 1)
         const finalHotspotPassword = (hotspot_password && hotspot_password.trim() !== '') 
           ? hotspot_password.trim() 
           : finalWebPassword;
 
-        // Profile is required
         if (!hotspot_profile || hotspot_profile.trim() === '') {
           if (res.headersSent) return;
           req.flash('error', 'Profile Hotspot harus dipilih untuk user baru');
           return res.redirect('/admin/users');
         }
 
-        // Guard check before async operation
         if (res.headersSent) {
           return;
         }
@@ -975,11 +883,10 @@ class AdminController {
         }
 
         try {
-          // Stage 3: Create Hotspot User with final credentials
           await MikrotikService.createHotspotUser(
             finalHotspotUsername,
             finalHotspotPassword,
-            mikrotikComment, // Use mikrotik_comment_id directly as Mikrotik comment
+            mikrotikComment,
             hotspot_profile.trim()
           );
         } catch (error) {
@@ -988,7 +895,6 @@ class AdminController {
           return res.redirect('/admin/users');
         }
       } else {
-        // Guard check before async operation
         if (res.headersSent) {
           return;
         }
@@ -1001,16 +907,13 @@ class AdminController {
         }
       }
 
-      // Guard check before async operations
       if (res.headersSent) {
         return;
       }
 
-      // Use finalWebPassword for database storage
       const passwordHash = await bcrypt.hash(finalWebPassword, 10);
       const passwordEncrypted = cryptoHelper.encrypt(finalWebPassword);
 
-      // Guard check after async operations
       if (res.headersSent) {
         return;
       }
@@ -1021,13 +924,12 @@ class AdminController {
         password_hash: passwordHash,
         password_plain: finalWebPassword,
         password_encrypted_viewable: passwordEncrypted,
-        role: 'guru', // Force role to 'guru' for regular user management
+        role: 'guru',
         mikrotik_comment_id,
-        mikrotik_comment: mikrotikComment, // Save mikrotik_comment_id as comment to DB
-        must_change_password: 1 // CRITICAL: Force password change
+        mikrotik_comment: mikrotikComment,
+        must_change_password: 1
       });
       } catch (dbError) {
-        // Handle database errors (e.g., UNIQUE constraint violations)
         if (res.headersSent) return;
         console.error('Database error creating user:', dbError);
         let errorMessage = 'Gagal menyimpan user ke database';
@@ -1044,16 +946,13 @@ class AdminController {
         return res.redirect('/admin/users');
       }
 
-      // Guard check before final response
       if (res.headersSent) {
         return;
       }
 
-      // Log activity (wrapped in try-catch to prevent errors from breaking the flow)
       try {
         logActivity(req, 'CREATE_USER', `Username: ${username}, Comment ID: ${mikrotik_comment_id}`);
       } catch (logError) {
-        // Log error but don't fail the request
         console.error('Failed to log activity:', logError);
       }
 
@@ -1065,7 +964,6 @@ class AdminController {
       req.flash('success', message);
       return res.redirect('/admin/users');
     } catch (error) {
-      // Guard check in catch block
       if (res.headersSent) {
         console.error('Create user error (response already sent):', error);
         return;
@@ -1089,7 +987,6 @@ class AdminController {
         return validationResponse;
       }
 
-      // Check if this is an API request (fetch) or form submission
       const isApiRequest = req.headers.accept && req.headers.accept.includes('application/json');
 
       const user = User.findById(userId);
@@ -1212,8 +1109,6 @@ class AdminController {
         });
       }
 
-      // Security: Prevent viewing passwords of ALL admin accounts
-      // This applies to the admin management page where all users are admins
       if (user && user.role === 'admin') {
         return res.json({
           success: false,
@@ -1260,7 +1155,6 @@ class AdminController {
     try {
       const userId = req.params.id;
 
-      // Prevent self-deletion
       if (parseInt(userId) === req.session.userId) {
         req.flash('error', 'Tidak dapat menghapus akun sendiri');
         return res.redirect('/admin/users');
@@ -1275,29 +1169,22 @@ class AdminController {
       const deletedUsername = user.username;
       const commentId = user.mikrotik_comment_id;
 
-      // 1. Try to delete from Mikrotik first (Async operation outside DB transaction)
       if (commentId) {
         try {
           const verification = await MikrotikService.verifyCommentId(commentId);
           if (verification.exists && verification.user && verification.user['.id']) {
-            // Use the newly added deleteHotspotUser method
             await MikrotikService.deleteHotspotUser(verification.user['.id']);
           }
         } catch (mikrotikError) {
           console.error('Failed to delete Mikrotik user:', mikrotikError);
-          // Continue to delete local user even if Mikrotik fails, but log it.
         }
       }
 
-      // 2. Transactional Delete from Local DB
-      // We use dashboardDb.transaction to ensure atomicity and handle FK constraints manually if needed
-      const deleteTransaction = dashboardDb.transaction(() => {
-        // Delete dependent records first (Manual Cascade)
-        dashboardDb.prepare('DELETE FROM login_attempts WHERE user_id = ?').run(userId);
-        dashboardDb.prepare('DELETE FROM audit_logs WHERE user_id = ?').run(userId);
-
-        // Delete the user
-        dashboardDb.prepare('DELETE FROM users WHERE id = ?').run(userId);
+      const db = getDatabase();
+      const deleteTransaction = db.transaction(() => {
+        db.prepare('DELETE FROM login_attempts WHERE user_id = ?').run(userId);
+        db.prepare('DELETE FROM audit_logs WHERE user_id = ?').run(userId);
+        db.prepare('DELETE FROM users WHERE id = ?').run(userId);
       });
 
       deleteTransaction();
@@ -1377,7 +1264,6 @@ class AdminController {
     let processedCount = 0;
 
     try {
-      // Parse CSV
       await new Promise((resolve, reject) => {
         fs.createReadStream(req.file.path)
           .pipe(csv())
@@ -1386,24 +1272,20 @@ class AdminController {
           .on('error', reject);
       });
 
-      // Process each row
       for (const row of results) {
         processedCount++;
-        // Expecting 'nip' and 'nama_guru'
         const { nip, nama_guru } = row;
 
-        // Basic Validation
         if (!nip || !nama_guru) {
           errors.push(`Row ${processedCount}: Missing required fields (nip, nama_guru)`);
           continue;
         }
 
         const username = nip.trim();
-        const password = nip.trim(); // Default password is NIP
-        const mikrotik_comment_id = nip.trim(); // Store NIP as ID
-        const mikrotik_comment_name = nama_guru.trim(); // Use Name for Mikrotik Comment
+        const password = nip.trim();
+        const mikrotik_comment_id = nip.trim();
+        const mikrotik_comment_name = nama_guru.trim();
 
-        // Check duplicates in DB
         const existingUser = User.findByUsername(username);
         if (existingUser) {
           errors.push(`Row ${processedCount}: NIP '${username}' already exists`);
@@ -1416,7 +1298,6 @@ class AdminController {
           continue;
         }
 
-        // Prepare User Data
         const passwordHash = await bcrypt.hash(password, 10);
         const passwordEncrypted = cryptoHelper.encrypt(password);
 
@@ -1427,26 +1308,13 @@ class AdminController {
           password_encrypted_viewable: passwordEncrypted,
           role: 'guru',
           mikrotik_comment_id,
-          must_change_password: 1, // Force password change
-          mikrotik_comment_name // Pass this for Mikrotik creation
+          must_change_password: 1,
+          mikrotik_comment_name
         });
       }
 
       if (successUsers.length > 0) {
-        // DB Transaction
         try {
-          // Note: bulkCreate in User model needs to handle 'must_change_password' if we added it to the query?
-          // Wait, I need to update User.bulkCreate to include 'must_change_password'.
-          // Or I can update User.bulkCreate now.
-          // Let's check User.js content again.
-          // I will update User.bulkCreate in the next step or assume I need to do it.
-          // I'll update User.bulkCreate first or concurrently.
-          // For now, let's assume User.bulkCreate will be updated.
-
-          // Actually, I should update User.js first or use a loop here if I can't update it easily.
-          // But I can update it.
-          // I will update User.js in a separate tool call.
-
           User.bulkCreate(successUsers);
         } catch (dbError) {
           console.error('Bulk create error:', dbError);
@@ -1455,33 +1323,13 @@ class AdminController {
           return res.redirect('/admin/users');
         }
 
-        // Mikrotik Creation (Best Effort)
         const mikrotikErrors = [];
         for (const user of successUsers) {
           try {
-            // Create in Mikrotik: Name=NIP, Password=NIP, Comment=Nama Guru
-            // We need to check if user exists first?
-            // mikrotikService.createHotspotUser(username, password, comment, profile)
-            // Wait, createHotspotUser takes (username, password, commentId, profile).
-            // And it sets comment=commentId.
-            // Requirement: "The Teacher's Name (nama_guru) will be used as the Mikrotik user's comment".
-            // So I should pass `nama_guru` as the 3rd argument.
-            // BUT, `createHotspotUser` also checks if comment exists.
-            // If I pass Name as comment, it checks if Name exists as comment.
-            // This is fine, assuming names are unique enough or we don't care about name collision as much as ID collision.
-            // But if 2 teachers have same name, 2nd one fails.
-            // Maybe I should append NIP? "Nama Guru (NIP)".
-            // User said: "The Teacher's Name (nama_guru) will be used as the Mikrotik user's comment for easy identification."
-            // I'll stick to `nama_guru`.
-
-            // Also, `createHotspotUser` needs a profile.
-            // I'll use 'default' or fetch one.
-            // I'll try to use 'default' if not specified.
-
             await MikrotikService.createHotspotUser(
-              user.username, // NIP
-              user.password_plain, // NIP
-              user.mikrotik_comment_name, // Nama Guru
+              user.username,
+              user.password_plain,
+              user.mikrotik_comment_name,
               'default' // Default profile
             );
 
@@ -1575,14 +1423,11 @@ class AdminController {
    */
   static async getActiveDevicesApi(req, res) {
     try {
-      // Fetch all detailed active sessions from Mikrotik
       const allSessions = await MikrotikService.getDetailedActiveSessions();
 
-      // Get all guru users to filter sessions
       const allUsers = User.findAll().filter((u) => u.role === 'guru');
       const commentIdSet = new Set(allUsers.map((u) => u.mikrotik_comment_id).filter(Boolean));
 
-      // Map username to comment ID for filtering
       const usernameToCommentMap = new Map();
       const uniqueUsernames = [
         ...new Set(allSessions.map((s) => s.user).filter(Boolean))
@@ -1599,7 +1444,6 @@ class AdminController {
         }
       }
 
-      // Filter sessions to only include Teachers/Gurus
       const filteredSessions = allSessions
         .filter((session) => {
           const commentId = usernameToCommentMap.get(session.user);
@@ -1609,6 +1453,8 @@ class AdminController {
           const commentId = usernameToCommentMap.get(session.user) || null;
           const uptimeSeconds = formatter.parseUptimeToSeconds(session.uptime);
           const formattedUptime = formatter.formatUptime(uptimeSeconds);
+          const bytesIn = session['bytes-in'] || '0';
+          const bytesOut = session['bytes-out'] || '0';
 
           return {
             user: session.user,
@@ -1618,7 +1464,11 @@ class AdminController {
             uptime: session.uptime,
             formattedUptime,
             commentId,
-            sessionId: session.sessionId
+            sessionId: session.sessionId,
+            'bytes-in': bytesIn,
+            'bytes-out': bytesOut,
+            'bytes-in-formatted': formatter.formatBytes(bytesIn),
+            'bytes-out-formatted': formatter.formatBytes(bytesOut)
           };
         });
 
@@ -1674,7 +1524,8 @@ class AdminController {
       `;
       const whereClause = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
 
-      const countStmt = dashboardDb.prepare(`SELECT COUNT(*) as total ${baseQuery} ${whereClause}`);
+      const db = getDatabase();
+      const countStmt = db.prepare(`SELECT COUNT(*) as total ${baseQuery} ${whereClause}`);
       const totalResult = countStmt.get(...params);
       const totalRecords = totalResult ? totalResult.total : 0;
       const totalPages = totalRecords > 0 ? Math.ceil(totalRecords / limit) : 1;
@@ -1684,7 +1535,7 @@ class AdminController {
       }
       const adjustedOffset = (currentPage - 1) * limit;
 
-      const dataStmt = dashboardDb.prepare(
+      const dataStmt = db.prepare(
         `SELECT 
           al.*,
           COALESCE(al.username, u.username) AS username
@@ -1751,6 +1602,184 @@ class AdminController {
       return res.status(500).json({
         success: false,
         message: error.message || 'Gagal menjalankan diagnostics'
+      });
+    }
+  }
+
+  /**
+   * Get Dashboard Data (Async - Non-blocking)
+   * Fetches Mikrotik data separately to avoid blocking dashboard load
+   */
+  static async getDashboardData(req, res) {
+    if (res.headersSent) return;
+
+    try {
+      let connectionTest = { success: false, message: 'Router offline' };
+      try {
+        connectionTest = await MikrotikService.testConnection();
+      } catch (error) {
+        console.error('[DashboardData] Connection test failed:', error.message);
+      }
+
+      const allUsers = User.findAll().filter((u) => u.role === 'guru');
+
+      let systemResources = null;
+      let allActiveSessions = [];
+      let usersWithSessions = [];
+
+      if (connectionTest.success) {
+        try {
+          systemResources = await MikrotikService.getSystemResources();
+          allActiveSessions = await MikrotikService.getAllActiveHotspotSessions();
+
+          const sessionMap = new Map();
+          const usernameToCommentMap = new Map();
+
+          const uniqueUsernames = [
+            ...new Set(allActiveSessions.map((s) => s.user).filter(Boolean))
+          ];
+
+          for (const username of uniqueUsernames) {
+            try {
+              const hotspotUser = await MikrotikService.getHotspotUserByUsername(username);
+              if (hotspotUser && hotspotUser.comment) {
+                usernameToCommentMap.set(username, hotspotUser.comment);
+              }
+            } catch (error) {
+              console.error(`[DashboardData] Error fetching user ${username}:`, error);
+            }
+          }
+
+          for (const session of allActiveSessions) {
+            const username = session.user || '';
+            if (!username) {
+              continue;
+            }
+
+            const commentId = usernameToCommentMap.get(username);
+            if (!commentId) {
+              continue;
+            }
+
+            if (!sessionMap.has(commentId)) {
+              sessionMap.set(commentId, []);
+            }
+
+            sessionMap.get(commentId).push({
+              ip: session['address'] || 'N/A',
+              mac: session['mac-address'] || 'N/A',
+              uptime: session.uptime || '0s',
+              username
+            });
+          }
+
+          usersWithSessions = allUsers.map((user) => {
+            try {
+              const commentId = user.mikrotik_comment_id;
+              const sessions = sessionMap.get(commentId) || [];
+
+              let longestUptime = '0s';
+              if (sessions.length > 0) {
+                const uptimes = sessions.map((s) => {
+                  const uptimeStr = s.uptime || '0s';
+                  return formatter.parseUptimeToSeconds(uptimeStr);
+                }).filter(s => !isNaN(s) && s >= 0);
+                if (uptimes.length > 0) {
+                  const maxSeconds = Math.max(...uptimes);
+                  longestUptime = formatter.formatUptime(maxSeconds);
+                }
+              }
+
+              return {
+                id: user.id,
+                username: user.username,
+                commentId: commentId || '-',
+                status: sessions.length > 0 ? 'online' : 'offline',
+                activeDevices: sessions.length,
+                sessions,
+                uptime: longestUptime
+              };
+            } catch (error) {
+              console.error(`[DashboardData] Error processing user ${user.id}:`, error);
+              return {
+                id: user.id,
+                username: user.username,
+                commentId: user.mikrotik_comment_id || '-',
+                status: 'offline',
+                activeDevices: 0,
+                sessions: [],
+                uptime: '0s'
+              };
+            }
+          });
+        } catch (error) {
+          console.error('[DashboardData] Error fetching Mikrotik data:', error);
+          usersWithSessions = allUsers.map((user) => ({
+            id: user.id,
+            username: user.username,
+            commentId: user.mikrotik_comment_id || '-',
+            status: 'offline',
+            activeDevices: 0,
+            sessions: [],
+            uptime: '0s'
+          }));
+        }
+      } else {
+        usersWithSessions = allUsers.map((user) => ({
+          id: user.id,
+          username: user.username,
+          commentId: user.mikrotik_comment_id || '-',
+          status: 'offline',
+          activeDevices: 0,
+          sessions: [],
+          uptime: '0s'
+        }));
+      }
+
+      const totalActiveConnections = allActiveSessions.length;
+      const systemHealth = systemResources
+        ? {
+          totalMemory: systemResources['total-memory'] || 0,
+          freeMemory: systemResources['free-memory'] || 0,
+          usedMemory: 0,
+          memoryPercent: 0
+        }
+        : null;
+
+      if (systemHealth && systemHealth.totalMemory > 0) {
+        systemHealth.usedMemory = systemHealth.totalMemory - systemHealth.freeMemory;
+        systemHealth.memoryPercent = Math.round(
+          (systemHealth.usedMemory / systemHealth.totalMemory) * 100
+        );
+      }
+
+      if (res.headersSent) return;
+
+      return res.json({
+        success: true,
+        data: {
+          connectionTest,
+          systemResources,
+          totalActiveConnections,
+          systemHealth,
+          usersWithSessions
+        }
+      });
+    } catch (error) {
+      if (res.headersSent) return;
+
+      console.error('[DashboardData] CRITICAL ERROR:', error);
+
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Gagal memuat data dashboard',
+        data: {
+          connectionTest: { success: false, message: 'Error: ' + error.message },
+          systemResources: null,
+          totalActiveConnections: 0,
+          systemHealth: null,
+          usersWithSessions: []
+        }
       });
     }
   }

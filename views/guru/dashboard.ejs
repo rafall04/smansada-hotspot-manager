@@ -78,63 +78,18 @@
 
         <div class="row g-4">
             <!-- Device Quota Card -->
-            <% if (deviceQuota && deviceQuota.profileName) { %>
-            <div class="col-lg-12">
+            <div class="col-lg-12" id="deviceQuotaCard" style="display: none;">
                 <div class="card card-clean">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="bi bi-devices"></i> Status Kuota Perangkat</h5>
                     </div>
-                    <div class="card-body">
-                        <% if (deviceQuota.maxDevices === null) { %>
-                            <div class="alert alert-info mb-0">
-                                <i class="bi bi-info-circle"></i> 
-                                Anda menggunakan profil <b><%= deviceQuota.profileName %></b>. 
-                                Kuota perangkat: <b>Tidak Terbatas</b>.
-                            </div>
-                        <% } else { %>
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-semibold">Perangkat Terhubung: <span class="text-primary"><%= deviceQuota.currentDevices %></span> / <span class="text-secondary"><%= deviceQuota.maxDevices %></span></span>
-                                    <% 
-                                        const percentage = (deviceQuota.currentDevices / deviceQuota.maxDevices) * 100;
-                                        let progressClass = 'bg-success';
-                                        if (percentage >= 100) {
-                                            progressClass = 'bg-danger';
-                                        } else if (percentage >= 80) {
-                                            progressClass = 'bg-warning';
-                                        }
-                                    %>
-                                </div>
-                                <div class="progress" style="height: 25px;">
-                                    <div class="progress-bar <%= progressClass %>" role="progressbar" 
-                                         style="width: <%= Math.min(percentage, 100) %>%" 
-                                         aria-valuenow="<%= deviceQuota.currentDevices %>" 
-                                         aria-valuemin="0" 
-                                         aria-valuemax="<%= deviceQuota.maxDevices %>">
-                                        <%= Math.round(percentage) %>%
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <% if (deviceQuota.isFull) { %>
-                                <div class="alert alert-warning alert-dismissible fade show mb-0" role="alert">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> 
-                                    <strong>Batas perangkat tercapai (Maksimal <%= deviceQuota.maxDevices %>).</strong> 
-                                    Agar bisa login di HP baru, silakan klik tombol 'Kick' pada salah satu perangkat lama di tabel Sesi Aktif di bawah.
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                </div>
-                            <% } else { %>
-                                <div class="alert alert-light mb-0">
-                                    <i class="bi bi-info-circle"></i> 
-                                    Anda menggunakan profil <b><%= deviceQuota.profileName %></b>. 
-                                    Sisa slot: <b><%= deviceQuota.maxDevices - deviceQuota.currentDevices %> perangkat</b>.
-                                </div>
-                            <% } %>
-                        <% } %>
+                    <div class="card-body" id="deviceQuotaContent">
+                        <div class="text-center py-4">
+                            <i class="bi bi-arrow-clockwise spin"></i> Memuat data kuota...
+                        </div>
                     </div>
                 </div>
             </div>
-            <% } %>
 
             <!-- User Information Card -->
             <div class="col-lg-6">
@@ -142,41 +97,10 @@
                     <div class="card-header">
                         <h5 class="mb-0"><i class="bi bi-person-badge"></i> Informasi User Hotspot</h5>
                     </div>
-                    <div class="card-body">
-                        <% if (hotspotUser) { %>
-                            <dl class="row mb-0">
-                                <dt class="col-sm-4"><i class="bi bi-person"></i> Username</dt>
-                                <dd class="col-sm-8"><code><%= hotspotUser.name %></code></dd>
-                                
-                                <dt class="col-sm-4"><i class="bi bi-key"></i> Password</dt>
-                                <dd class="col-sm-8"><code><%= hotspotUser.password || 'N/A' %></code></dd>
-                                
-                                <dt class="col-sm-4"><i class="bi bi-sliders"></i> Profile</dt>
-                                <dd class="col-sm-8"><%= hotspotUser.profile || 'N/A' %></dd>
-                                
-                                <% if (hotspotUser['limit-uptime']) { %>
-                                    <dt class="col-sm-4"><i class="bi bi-clock"></i> Limit Uptime</dt>
-                                    <dd class="col-sm-8"><%= hotspotUser['limit-uptime'] %></dd>
-                                <% } %>
-                                
-                                <% if (hotspotUser['limit-bytes-total']) { %>
-                                    <dt class="col-sm-4"><i class="bi bi-hdd"></i> Limit Bytes</dt>
-                                    <dd class="col-sm-8"><%= hotspotUser['limit-bytes-total'] %></dd>
-                                <% } %>
-                                
-                                <dt class="col-sm-4"><i class="bi bi-tag"></i> Comment</dt>
-                                <dd class="col-sm-8"><code><%= hotspotUser.comment || 'N/A' %></code></dd>
-                            </dl>
-                            <div class="mt-3">
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#loginHelperModal">
-                                    <i class="bi bi-qr-code"></i> Show Login QR / Link
-                                </button>
-                            </div>
-                        <% } else { %>
-                            <div class="alert alert-warning mb-0">
-                                <i class="bi bi-exclamation-triangle"></i> User hotspot tidak ditemukan
-                            </div>
-                        <% } %>
+                    <div class="card-body" id="userInfoContent">
+                        <div class="text-center py-4">
+                            <i class="bi bi-arrow-clockwise spin"></i> Memuat data user...
+                        </div>
                     </div>
                 </div>
             </div>
@@ -188,60 +112,14 @@
                         <h5 class="mb-0">
                             <i class="bi bi-wifi"></i> Status Koneksi
                         </h5>
-                        <% if (activeSessions && activeSessions.length > 0) { %>
-                            <span class="badge bg-light text-dark fs-6">
-                                <%= activeSessions.length %> Device
-                            </span>
-                        <% } %>
+                        <span class="badge bg-light text-dark fs-6" id="sessionCountBadge" style="display: none;">
+                            0 Device
+                        </span>
                     </div>
-                    <div class="card-body">
-                        <% if (activeSessions && activeSessions.length > 0) { %>
-                            <div class="mb-3">
-                                <span class="badge bg-success-subtle text-success">
-                                    <i class="bi bi-check-circle-fill"></i> Terhubung (<%= activeSessions.length %> device)
-                                </span>
-                            </div>
-                            
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Device</th>
-                                            <th class="text-nowrap">IP Address</th>
-                                            <th class="text-nowrap">MAC Address</th>
-                                            <th class="text-nowrap">Uptime</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <% activeSessions.forEach((session, index) => { %>
-                                            <tr>
-                                                <td>
-                                                    <i class="bi bi-device-hdd"></i> Device <%= index + 1 %>
-                                                </td>
-                                                <td class="text-nowrap"><code><%= session.address || 'N/A' %></code></td>
-                                                <td class="text-nowrap"><code><%= session['mac-address'] || 'N/A' %></code></td>
-                                                <td class="text-nowrap"><%= session.uptime || 'N/A' %></td>
-                                                <td>
-                                                    <button class="btn btn-outline-danger btn-sm kick-session-btn" 
-                                                            data-session-id="<%= session['.id'] %>"
-                                                            title="Kick this device">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        <% }); %>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <% } else { %>
-                            <div class="text-center py-4">
-                                <span class="badge bg-secondary-subtle text-secondary mb-3">
-                                    <i class="bi bi-x-circle"></i> Tidak Terhubung
-                                </span>
-                                <p class="text-muted mb-0">Tidak ada koneksi aktif saat ini.</p>
-                            </div>
-                        <% } %>
+                    <div class="card-body" id="activeSessionsContent">
+                        <div class="text-center py-4">
+                            <i class="bi bi-arrow-clockwise spin"></i> Memuat data sesi aktif...
+                        </div>
                     </div>
                 </div>
             </div>
@@ -499,48 +377,309 @@
             }
 
             document.addEventListener('DOMContentLoaded', function() {
-                const kickSessionButtons = document.querySelectorAll('.kick-session-btn');
-                kickSessionButtons.forEach(btn => {
-                    btn.addEventListener('click', async function() {
-                        const sessionId = this.getAttribute('data-session-id');
-                        if (!sessionId) return;
-
-                        if (!confirm('Apakah Anda yakin ingin memutus koneksi device ini?')) {
-                            return;
-                        }
-
-                        const originalHtml = this.innerHTML;
-                        this.disabled = true;
-                        this.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-
-                        try {
-                            const response = await fetch(`/guru/kick-session/${sessionId}`, {
-                                method: 'POST',
-                                headers: {
-                                    'Accept': 'application/json'
-                                }
-                            });
-
-                            const data = await response.json();
-
-                            if (response.ok && data.success) {
-                                showToast('success', 'Device berhasil diputus');
-                                setTimeout(() => {
-                                    window.location.reload();
-                                }, 1000);
+                // Load Dashboard Data (Mikrotik) asynchronously
+                function loadDashboardData() {
+                    fetch('/guru/api/dashboard-data')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.data) {
+                                updateDashboardUI(data.data);
                             } else {
-                                showToast('error', data.message || 'Gagal memutus koneksi');
+                                showDashboardError(data.message || 'Gagal memuat data');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error loading dashboard data:', error);
+                            showDashboardError('Gagal memuat data dashboard');
+                        });
+                }
+
+                function formatBytes(bytes) {
+                    if (!bytes || bytes === '0') return '0 B';
+                    const numBytes = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+                    if (isNaN(numBytes)) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(numBytes) / Math.log(k));
+                    return Math.round(numBytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+                }
+
+                function updateDashboardUI(data) {
+                    // Update Device Quota
+                    const deviceQuotaCard = document.getElementById('deviceQuotaCard');
+                    const deviceQuotaContent = document.getElementById('deviceQuotaContent');
+                    
+                    if (data.deviceQuota && data.deviceQuota.profileName) {
+                        deviceQuotaCard.style.display = 'block';
+                        if (data.deviceQuota.maxDevices === null) {
+                            deviceQuotaContent.innerHTML = `
+                                <div class="alert alert-info mb-0">
+                                    <i class="bi bi-info-circle"></i> 
+                                    Anda menggunakan profil <b>${data.deviceQuota.profileName}</b>. 
+                                    Kuota perangkat: <b>Tidak Terbatas</b>.
+                                </div>
+                            `;
+                        } else {
+                            const percentage = (data.deviceQuota.currentDevices / data.deviceQuota.maxDevices) * 100;
+                            let progressClass = 'bg-success';
+                            if (percentage >= 100) {
+                                progressClass = 'bg-danger';
+                            } else if (percentage >= 80) {
+                                progressClass = 'bg-warning';
+                            }
+                            
+                            let quotaHtml = `
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="fw-semibold">Perangkat Terhubung: <span class="text-primary">${data.deviceQuota.currentDevices}</span> / <span class="text-secondary">${data.deviceQuota.maxDevices}</span></span>
+                                    </div>
+                                    <div class="progress" style="height: 25px;">
+                                        <div class="progress-bar ${progressClass}" role="progressbar" 
+                                             style="width: ${Math.min(percentage, 100)}%" 
+                                             aria-valuenow="${data.deviceQuota.currentDevices}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="${data.deviceQuota.maxDevices}">
+                                            ${Math.round(percentage)}%
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            if (data.deviceQuota.isFull) {
+                                quotaHtml += `
+                                    <div class="alert alert-warning alert-dismissible fade show mb-0" role="alert">
+                                        <i class="bi bi-exclamation-triangle-fill"></i> 
+                                        <strong>Batas perangkat tercapai (Maksimal ${data.deviceQuota.maxDevices}).</strong> 
+                                        Agar bisa login di HP baru, silakan klik tombol 'Kick' pada salah satu perangkat lama di tabel Sesi Aktif di bawah.
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                `;
+                            } else {
+                                quotaHtml += `
+                                    <div class="alert alert-light mb-0">
+                                        <i class="bi bi-info-circle"></i> 
+                                        Anda menggunakan profil <b>${data.deviceQuota.profileName}</b>. 
+                                        Sisa slot: <b>${data.deviceQuota.maxDevices - data.deviceQuota.currentDevices} perangkat</b>.
+                                    </div>
+                                `;
+                            }
+                            
+                            deviceQuotaContent.innerHTML = quotaHtml;
+                        }
+                    } else {
+                        deviceQuotaCard.style.display = 'none';
+                    }
+
+                    // Update User Information
+                    const userInfoContent = document.getElementById('userInfoContent');
+                    if (data.hotspotUser) {
+                        let userInfoHtml = `
+                            <dl class="row mb-0">
+                                <dt class="col-sm-4"><i class="bi bi-person"></i> Username</dt>
+                                <dd class="col-sm-8"><code>${data.hotspotUser.name || 'N/A'}</code></dd>
+                                
+                                <dt class="col-sm-4"><i class="bi bi-key"></i> Password</dt>
+                                <dd class="col-sm-8"><code>${data.hotspotUser.password || 'N/A'}</code></dd>
+                                
+                                <dt class="col-sm-4"><i class="bi bi-sliders"></i> Profile</dt>
+                                <dd class="col-sm-8">${data.hotspotUser.profile || 'N/A'}</dd>
+                        `;
+                        
+                        if (data.hotspotUser['limit-uptime']) {
+                            userInfoHtml += `
+                                <dt class="col-sm-4"><i class="bi bi-clock"></i> Limit Uptime</dt>
+                                <dd class="col-sm-8">${data.hotspotUser['limit-uptime']}</dd>
+                            `;
+                        }
+                        
+                        if (data.hotspotUser['limit-bytes-total']) {
+                            userInfoHtml += `
+                                <dt class="col-sm-4"><i class="bi bi-hdd"></i> Limit Bytes</dt>
+                                <dd class="col-sm-8">${data.hotspotUser['limit-bytes-total']}</dd>
+                            `;
+                        }
+                        
+                        userInfoHtml += `
+                                <dt class="col-sm-4"><i class="bi bi-tag"></i> Comment</dt>
+                                <dd class="col-sm-8"><code>${data.hotspotUser.comment || 'N/A'}</code></dd>
+                            </dl>
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#loginHelperModal">
+                                    <i class="bi bi-qr-code"></i> Show Login QR / Link
+                                </button>
+                            </div>
+                        `;
+                        
+                        userInfoContent.innerHTML = userInfoHtml;
+                        
+                        // Update login helper modal if exists
+                        const magicLinkInput = document.getElementById('magicLinkInput');
+                        if (magicLinkInput && data.hotspotLoginUrl) {
+                            magicLinkInput.value = data.hotspotLoginUrl;
+                        }
+                    } else {
+                        userInfoContent.innerHTML = `
+                            <div class="alert alert-warning mb-0">
+                                <i class="bi bi-exclamation-triangle"></i> ${data.error || 'User hotspot tidak ditemukan'}
+                            </div>
+                        `;
+                    }
+
+                    // Update Active Sessions
+                    const activeSessionsContent = document.getElementById('activeSessionsContent');
+                    const sessionCountBadge = document.getElementById('sessionCountBadge');
+                    
+                    if (data.activeSessions && data.activeSessions.length > 0) {
+                        sessionCountBadge.style.display = 'block';
+                        sessionCountBadge.textContent = `${data.activeSessions.length} Device`;
+                        
+                        let sessionsHtml = `
+                            <div class="mb-3">
+                                <span class="badge bg-success-subtle text-success">
+                                    <i class="bi bi-check-circle-fill"></i> Terhubung (${data.activeSessions.length} device)
+                                </span>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Device</th>
+                                            <th class="text-nowrap">IP Address</th>
+                                            <th class="text-nowrap">MAC Address</th>
+                                            <th class="text-nowrap">Uptime</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                        `;
+                        
+                        data.activeSessions.forEach((session, index) => {
+                            sessionsHtml += `
+                                <tr>
+                                    <td>
+                                        <i class="bi bi-device-hdd"></i> Device ${index + 1}
+                                    </td>
+                                    <td class="text-nowrap"><code>${session.address || 'N/A'}</code></td>
+                                    <td class="text-nowrap"><code>${session['mac-address'] || 'N/A'}</code></td>
+                                    <td class="text-nowrap">${session.uptime || 'N/A'}</td>
+                                    <td>
+                                        <button class="btn btn-outline-danger btn-sm kick-session-btn" 
+                                                data-session-id="${session['.id']}"
+                                                title="Kick this device">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        
+                        sessionsHtml += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                        
+                        activeSessionsContent.innerHTML = sessionsHtml;
+                        
+                        // Re-attach kick session event listeners
+                        attachKickSessionListeners();
+                    } else {
+                        sessionCountBadge.style.display = 'none';
+                        activeSessionsContent.innerHTML = `
+                            <div class="text-center py-4">
+                                <span class="badge bg-secondary-subtle text-secondary mb-3">
+                                    <i class="bi bi-x-circle"></i> Tidak Terhubung
+                                </span>
+                                <p class="text-muted mb-0">Tidak ada koneksi aktif saat ini.</p>
+                            </div>
+                        `;
+                    }
+                }
+
+                function showDashboardError(message) {
+                    const deviceQuotaContent = document.getElementById('deviceQuotaContent');
+                    const userInfoContent = document.getElementById('userInfoContent');
+                    const activeSessionsContent = document.getElementById('activeSessionsContent');
+                    
+                    deviceQuotaContent.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            <i class="bi bi-exclamation-triangle"></i> ${message}
+                        </div>
+                    `;
+                    
+                    userInfoContent.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            <i class="bi bi-exclamation-triangle"></i> ${message}
+                        </div>
+                    `;
+                    
+                    activeSessionsContent.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            <i class="bi bi-exclamation-triangle"></i> ${message}
+                        </div>
+                    `;
+                }
+
+                function attachKickSessionListeners() {
+                    const kickSessionButtons = document.querySelectorAll('.kick-session-btn');
+                    kickSessionButtons.forEach(btn => {
+                        btn.addEventListener('click', async function() {
+                            const sessionId = this.getAttribute('data-session-id');
+                            if (!sessionId) return;
+
+                            if (!confirm('Apakah Anda yakin ingin memutus koneksi device ini?')) {
+                                return;
+                            }
+
+                            const originalHtml = this.innerHTML;
+                            this.disabled = true;
+                            this.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+                            try {
+                                const response = await fetch(`/guru/kick-session/${sessionId}`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Accept': 'application/json'
+                                    }
+                                });
+
+                                const data = await response.json();
+
+                                if (response.ok && data.success) {
+                                    if (typeof showToast === 'function') {
+                                        showToast('success', 'Device berhasil diputus');
+                                    } else {
+                                        alert('Device berhasil diputus');
+                                    }
+                                    setTimeout(() => {
+                                        loadDashboardData();
+                                    }, 1000);
+                                } else {
+                                    if (typeof showToast === 'function') {
+                                        showToast('error', data.message || 'Gagal memutus koneksi');
+                                    } else {
+                                        alert(data.message || 'Gagal memutus koneksi');
+                                    }
+                                    this.disabled = false;
+                                    this.innerHTML = originalHtml;
+                                }
+                            } catch (error) {
+                                console.error('Kick session error:', error);
+                                if (typeof showToast === 'function') {
+                                    showToast('error', 'Gagal memutus koneksi: ' + error.message);
+                                } else {
+                                    alert('Gagal memutus koneksi: ' + error.message);
+                                }
                                 this.disabled = false;
                                 this.innerHTML = originalHtml;
                             }
-                        } catch (error) {
-                            console.error('Kick session error:', error);
-                            showToast('error', 'Gagal memutus koneksi: ' + error.message);
-                            this.disabled = false;
-                            this.innerHTML = originalHtml;
-                        }
+                        });
                     });
-                });
+                }
+
+                // Load Dashboard Data
+                loadDashboardData();
 
                 const loginHelperModal = document.getElementById('loginHelperModal');
                 if (loginHelperModal) {

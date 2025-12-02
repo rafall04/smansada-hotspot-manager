@@ -1,21 +1,15 @@
 const express = require('express');
 const router = express.Router();
 
-// Controllers
 const AuthController = require('../controllers/authController');
 const AdminController = require('../controllers/adminController');
 const GuruController = require('../controllers/guruController');
 const validators = require('../middlewares/validators');
-
-// Middlewares
 const { isAuthenticated, isAdmin, isGuru } = require('../middlewares/authMiddleware');
-
-// ==================== Auth Routes ====================
 router.get('/login', AuthController.loginPage);
 router.post('/login', AuthController.login);
 router.post('/logout', AuthController.logout);
 
-// ==================== Admin Routes ====================
 router.get('/admin/dashboard', isAuthenticated, isAdmin, AdminController.dashboard);
 
 router.get('/admin/settings', isAuthenticated, isAdmin, AdminController.settingsPage);
@@ -71,19 +65,19 @@ router.post(
 );
 router.post('/admin/users/:id/delete', isAuthenticated, isAdmin, AdminController.deleteUser);
 
-// Admin Management Routes (Separate from regular users)
 router.get('/admin/admins', isAuthenticated, isAdmin, AdminController.manageAdminsPage);
 router.post('/admin/admins', isAuthenticated, isAdmin, AdminController.createAdminUser);
 router.post('/admin/admins/:id', isAuthenticated, isAdmin, AdminController.updateAdminUser);
 router.post('/admin/admins/:id/delete', isAuthenticated, isAdmin, AdminController.deleteAdminUser);
 
+router.get('/admin/api/dashboard-data', isAuthenticated, isAdmin, AdminController.getDashboardData);
 router.get('/admin/api/top-users', isAuthenticated, isAdmin, AdminController.getTopUsers);
 router.post('/admin/api/test-telegram', isAuthenticated, isAdmin, AdminController.testTelegram);
 router.get('/admin/api/logs', isAuthenticated, isAdmin, AdminController.getLogsApi);
 router.get('/admin/api/live-devices', isAuthenticated, isAdmin, AdminController.getActiveDevicesApi);
 
-// ==================== Guru Routes ====================
 router.get('/guru/dashboard', isAuthenticated, isGuru, GuruController.dashboard);
+router.get('/guru/api/dashboard-data', isAuthenticated, isGuru, GuruController.getDashboardData);
 router.get('/guru/settings', isAuthenticated, isGuru, GuruController.settingsPage);
 router.post('/guru/settings', isAuthenticated, isGuru, GuruController.updateSettings);
 router.post('/guru/update-web-account', isAuthenticated, isGuru, GuruController.updateWebAccount);
@@ -106,7 +100,6 @@ router.post('/guru/kick-session/:sessionId', isAuthenticated, isGuru, GuruContro
 router.get('/guru/initial-password-change', isAuthenticated, isGuru, GuruController.initialPasswordChangePage);
 router.post('/guru/update-initial-password', isAuthenticated, isGuru, GuruController.updateInitialPassword);
 
-// ==================== Root Redirect ====================
 router.get('/', (req, res) => {
   if (req.session && req.session.userId) {
     if (req.session.role === 'admin') {

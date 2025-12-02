@@ -17,6 +17,8 @@
     "db:diagnose": "node scripts/diagnose-db.js",
     "db:repair": "node scripts/diagnose-db.js --repair",
     "db:backup": "node scripts/diagnose-db.js --backup",
+    "perms:diagnose": "bash scripts/diagnose-permissions.sh",
+    "perms:fix": "bash scripts/fix-permissions.sh",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",

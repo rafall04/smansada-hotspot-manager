@@ -34,11 +34,8 @@ function checkDatabaseIntegrity() {
 
     const db = new Database(dbPath);
     
-    // Run integrity check
     const integrityCheck = db.prepare('PRAGMA integrity_check').get();
     const quickCheck = db.prepare('PRAGMA quick_check').get();
-    
-    // Check disk space (basic check)
     const fsStats = require('fs').statSync(require('path').dirname(dbPath));
     
     db.close();
@@ -78,7 +75,6 @@ function backupDatabase(backupDir = path.join(__dirname, '..', 'backups')) {
       };
     }
 
-    // Create backup directory if it doesn't exist
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
     }
@@ -86,7 +82,6 @@ function backupDatabase(backupDir = path.join(__dirname, '..', 'backups')) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupPath = path.join(backupDir, `hotspot.db.backup.${timestamp}`);
 
-    // Copy database file
     fs.copyFileSync(dbPath, backupPath);
 
     return {
@@ -116,18 +111,13 @@ function repairDatabase() {
       };
     }
 
-    // Backup first
     const backup = backupDatabase();
     if (!backup.success) {
       console.warn('[DB Repair] Backup failed, but continuing with repair...');
     }
 
     const db = new Database(dbPath);
-    
-    // Run VACUUM to rebuild database
     db.exec('VACUUM');
-    
-    // Run integrity check again
     const integrityCheck = db.prepare('PRAGMA integrity_check').get();
     
     db.close();

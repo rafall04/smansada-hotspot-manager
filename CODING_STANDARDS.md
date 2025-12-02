@@ -17,6 +17,7 @@ Dokumentasi standar coding berdasarkan **WORKFLOW.md v2.0** dan **Node.js Best P
 7. [Mikrotik Integration](#mikrotik-integration)
 8. [Code Comments](#code-comments)
 9. [File Organization](#file-organization)
+10. [Maintenance, Debugging, & Resilience Standards](#maintenance-debugging--resilience-standards)
 
 ---
 
@@ -715,15 +716,589 @@ npm run format:check
 
 ---
 
+## Maintenance, Debugging, & Resilience Standards
+
+### Overview
+
+This section defines critical standards for preventing common production issues, ensuring data integrity, maintaining UI consistency, and enabling effective debugging. These rules are **MANDATORY** and must be followed in all code changes.
+
+---
+
+### 1. Critical Flow Control (Preventing ERR_HTTP_HEADERS_SENT)
+
+#### The Golden Rule of Return
+
+**Rule:** A function must never have more than one response path without an explicit `return` at every single exit point.
+
+**Enforcement:** Every controller method that sends an HTTP response **MUST** use `return` immediately after the response call.
+
+```javascript
+// ✅ Good - Every response path has explicit return
+static async createUser(req, res) {
+  if (res.headersSent) return; // Guard check at entry
+  
+  try {
+    const validationResponse = respondValidationErrors(req, res, '/admin/users');
+    if (validationResponse) {
+      return validationResponse; // MUST return
+    }
+    
+    if (res.headersSent) return; // Guard after validation
+    
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      req.flash('error', 'Username dan password harus diisi');
+      return res.redirect('/admin/users'); // MUST return
+    }
+    
+    await User.create({ username, password });
+    req.flash('success', 'User berhasil dibuat');
+    return res.redirect('/admin/users'); // MUST return
+  } catch (error) {
+    if (res.headersSent) return; // Guard in catch block
+    console.error('[CreateUser] Error:', error);
+    req.flash('error', 'Gagal membuat user');
+    return res.redirect('/admin/users'); // MUST return
+  }
+}
+
+// ❌ Bad - Missing return statements
+static async createUser(req, res) {
+  try {
+    if (!req.body.username) {
+      res.redirect('/admin/users?error=Required'); // Missing return
+    }
+    
+    await User.create(req.body);
+    res.redirect('/admin/users?success=Created'); // Missing return
+  } catch (error) {
+    res.redirect('/admin/users?error=' + error.message); // Missing return
+  }
+}
+```
+
+#### Guard Checks (Mandatory Pattern)
+
+**Rule:** All critical asynchronous controller methods **MUST** include guard checks at strategic points.
+
+**Required Guard Check Locations:**
+
+1. **At function entry** (if middleware might have sent response)
+2. **After validation checks** (before processing)
+3. **Before each response call** (redundant but safe)
+4. **After async operations** (`await` statements)
+5. **In catch blocks** (before sending error responses)
+
+```javascript
+// ✅ Good - Comprehensive guard checks
+static async updateSettings(req, res) {
+  if (res.headersSent) return; // 1. Entry guard
+  
+  try {
+    const validationResponse = respondValidationErrors(req, res, '/admin/settings');
+    if (validationResponse) {
+      return validationResponse;
+    }
+    
+    if (res.headersSent) return; // 2. After validation
+    
+    const settings = await Settings.get(); // Async operation
+    if (res.headersSent) return; // 3. After async
+    
+    await Settings.update(req.body); // Async operation
+    if (res.headersSent) return; // 4. After async
+    
+    req.flash('success', 'Pengaturan berhasil disimpan');
+    return res.redirect('/admin/settings'); // 5. Explicit return
+  } catch (error) {
+    if (res.headersSent) return; // 5. Catch guard
+    console.error('[UpdateSettings] Error:', error);
+    req.flash('error', 'Gagal menyimpan pengaturan');
+    return res.redirect('/admin/settings'); // Explicit return
+  }
+}
+```
+
+#### Why This Matters
+
+Express.js throws `ERR_HTTP_HEADERS_SENT` if you attempt to send a response after headers have already been sent. This error:
+- Crashes the application
+- Prevents proper error handling
+- Creates poor user experience
+- Makes debugging difficult
+
+**Prevention Checklist:**
+- [ ] Every `res.redirect()` has `return` before it
+- [ ] Every `res.json()` has `return` before it
+- [ ] Every `res.send()` has `return` before it
+- [ ] Every `res.render()` has `return` before it
+- [ ] Guard checks at all critical points
+- [ ] No code execution after response is sent
+
+---
+
+### 2. Data Integrity and Form Protection
+
+#### Critical Form Anchors
+
+**Rule:** Define and maintain a list of **Critical Form Anchors** that must never be removed or modified without explicit verification.
+
+**Critical Form Anchors List:**
+
+| Form | Critical Fields | Purpose |
+|------|----------------|---------|
+| Admin/Users | `username`, `password`, `mikrotik_comment_id` | User creation/authentication |
+| Admin/Settings | `router_ip`, `router_user`, `router_password_encrypted` | Mikrotik connection |
+| Guru/Dashboard | `mikrotik_comment_id`, `username`, `password` | Hotspot user management |
+
+#### Form Field Integrity Check (Mandatory Process)
+
+**Rule:** Any refactoring that touches forms **MUST** begin with a **Form Field Integrity Check**.
+
+**Process:**
+
+1. **Before Changes:**
+   ```bash
+   # Document current form fields
+   - List all <input> fields in the form
+   - List all req.body accesses in controller
+   - List all validation rules in middlewares/validators.js
+   ```
+
+2. **During Changes:**
+   - Verify each field is still present in the form
+   - Verify each field is still mapped in the controller
+   - Verify validation rules are still in place
+
+3. **After Changes:**
+   ```bash
+   # Verification checklist
+   - [ ] All critical fields present in form
+   - [ ] All critical fields mapped in controller (req.body.fieldName)
+   - [ ] All critical fields have validation rules
+   - [ ] Form submission works end-to-end
+   - [ ] No console errors in browser
+   - [ ] No server errors in logs
+   ```
+
+**Example Integrity Check:**
+
+```javascript
+// ✅ Good - Before refactoring, document all fields
+/**
+ * FORM FIELD INTEGRITY CHECK - Admin/Users Form
+ * 
+ * Current Fields (DO NOT REMOVE):
+ * - username (required, text input)
+ * - password (required, password input)
+ * - mikrotik_comment_id (required, text input)
+ * 
+ * Controller Mapping:
+ * - req.body.username → User.create({ username })
+ * - req.body.password → bcrypt.hash() → User.create({ password_hash })
+ * - req.body.mikrotik_comment_id → User.create({ mikrotik_comment_id })
+ * 
+ * Validation Rules:
+ * - middlewares/validators.js: validateUserCreation()
+ *   - username: required, minLength(3), maxLength(50)
+ *   - password: required, minLength(8)
+ *   - mikrotik_comment_id: required, matches pattern
+ */
+```
+
+#### Redundancy Rule (Preventing Duplicate Fields)
+
+**Rule:** Prohibit the creation of two separate input fields that store the same type of essential identifier.
+
+**Examples:**
+
+```javascript
+// ❌ Bad - Redundant fields
+// Form has both:
+<input name="nip" />        // Teacher NIP
+<input name="mikrotik_comment_id" /> // Also stores NIP
+
+// ❌ Bad - Confusing dual storage
+// Controller tries to use both:
+const nip = req.body.nip || req.body.mikrotik_comment_id;
+
+// ✅ Good - Single source of truth
+// Form has only:
+<input name="mikrotik_comment_id" /> // Single identifier field
+
+// Controller uses only:
+const mikrotikCommentId = req.body.mikrotik_comment_id;
+```
+
+**Enforcement:**
+- Before adding a new identifier field, check if an equivalent field already exists
+- If equivalent exists, use the existing field or consolidate
+- Document the relationship if fields must coexist (with clear reason)
+
+---
+
+### 3. Environmental & Persistence Resilience
+
+#### Production Deployment Rules (Linux Environments)
+
+**Rule:** The application **MUST NEVER** run under the `root` user, and the project directory **MUST** reside outside the `/root/` folder.
+
+**Mandatory Requirements:**
+
+1. **User Account:**
+   ```bash
+   # ✅ Good - Create dedicated user
+   sudo useradd -m -s /bin/bash hotspot-manager
+   sudo su - hotspot-manager
+   
+   # ❌ Bad - Running as root
+   sudo su - root  # NEVER DO THIS
+   ```
+
+2. **Project Directory:**
+   ```bash
+   # ✅ Good - Project in user home directory
+   /home/hotspot-manager/smansada-hotspot-manager/
+   
+   # ✅ Good - Project in standard location
+   /opt/smansada-hotspot-manager/
+   
+   # ❌ Bad - Project in root directory
+   /root/smansada-hotspot-manager/  # NEVER DO THIS
+   ```
+
+3. **File Ownership:**
+   ```bash
+   # ✅ Good - Correct ownership
+   sudo chown -R hotspot-manager:hotspot-manager /home/hotspot-manager/smansada-hotspot-manager
+   sudo chmod -R 755 /home/hotspot-manager/smansada-hotspot-manager
+   
+   # Verify ownership
+   ls -la /home/hotspot-manager/smansada-hotspot-manager/hotspot.db
+   # Should show: hotspot-manager hotspot-manager
+   ```
+
+4. **PM2 Configuration:**
+   ```bash
+   # ✅ Good - Run as dedicated user
+   pm2 start app.js --name smansada-hotspot --user hotspot-manager
+   
+   # ❌ Bad - Running as root
+   sudo pm2 start app.js --name smansada-hotspot  # NEVER DO THIS
+   ```
+
+**Why This Matters:**
+
+- Running as `root` creates security vulnerabilities
+- Files in `/root/` may have restrictive permissions
+- SQLite I/O errors (`SQLITE_IOERR_DELETE_NOENT`) often occur due to permission issues
+- Proper ownership ensures database writes succeed
+
+#### SQLite Stability (Database Connection Management)
+
+**Rule:** Use **shared singleton database connection** with proper journal mode to prevent `SQLITE_IOERR_DELETE_NOENT` errors.
+
+**Mandatory Configuration:**
+
+1. **Shared Connection Pattern:**
+   ```javascript
+   // ✅ Good - models/db.js (singleton pattern)
+   let db = null;
+   
+   function getDatabase() {
+     if (db && db.open) {
+       return db;
+     }
+     
+     db = new Database(dbPath, {
+       timeout: 10000,
+       verbose: process.env.NODE_ENV === 'development' ? console.log : null
+     });
+     
+     // CRITICAL: Set durability settings
+     db.pragma('synchronous = FULL');
+     db.pragma('journal_mode = DELETE'); // Avoid WAL mode issues
+     
+     return db;
+   }
+   
+   // ❌ Bad - Multiple connections
+   // Each model creates its own connection
+   const db1 = new Database(dbPath); // User.js
+   const db2 = new Database(dbPath); // Settings.js
+   const db3 = new Database(dbPath); // AuditLog.js
+   ```
+
+2. **Journal Mode:**
+   ```javascript
+   // ✅ Good - DELETE mode (simpler, more reliable)
+   db.pragma('journal_mode = DELETE');
+   
+   // ⚠️ Use WAL mode only if:
+   // - Multiple processes need concurrent read access
+   // - You have proper file permission management
+   // - You handle WAL checkpointing correctly
+   
+   // ❌ Bad - WAL mode without proper management
+   db.pragma('journal_mode = WAL'); // Can cause permission issues
+   ```
+
+3. **Durability Settings:**
+   ```javascript
+   // ✅ Good - Maximum durability
+   db.pragma('synchronous = FULL'); // Wait for OS confirmation
+   
+   // ❌ Bad - Fast but unsafe
+   db.pragma('synchronous = OFF'); // Data loss risk
+   ```
+
+**Error Prevention Checklist:**
+- [ ] Single shared database connection (models/db.js)
+- [ ] All models use `getDatabase()` from models/db.js
+- [ ] Journal mode set to `DELETE` (not WAL)
+- [ ] Synchronous mode set to `FULL`
+- [ ] Proper file ownership (not root)
+- [ ] Project directory outside `/root/`
+- [ ] PM2 runs as dedicated user
+
+---
+
+### 4. UI Consistency and Scope
+
+#### Global Stylesheet Rule
+
+**Rule:** All aesthetic CSS (`@keyframes`, `.card-clean`, utility classes) **MUST** reside in global stylesheets (`/public/css/style.css`).
+
+**Enforcement:** Prohibit the use of inline `<style>` blocks in EJS view files.
+
+```html
+<!-- ✅ Good - styles.css -->
+<!-- public/css/style.css -->
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+.card-clean {
+  background: var(--bs-card-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+<!-- views/admin/users.ejs -->
+<link rel="stylesheet" href="/css/style.css">
+<i class="bi bi-arrow-clockwise spin"></i>
+
+<!-- ❌ Bad - Inline style block -->
+<!-- views/admin/users.ejs -->
+<style>
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+</style>
+```
+
+**Why This Matters:**
+
+- Inline styles create scope conflicts (animation not working on other pages)
+- Duplicate CSS definitions increase maintenance burden
+- Global stylesheet ensures consistency across all pages
+- Easier to debug and modify styles
+
+**CSS Organization:**
+
+```
+public/css/style.css
+├── CSS Variables (colors, spacing)
+├── Global Animations (@keyframes)
+├── Utility Classes (.card-clean, .spin)
+├── Component Styles (modals, forms)
+└── Responsive Breakpoints
+```
+
+**Pre-commit Checklist:**
+- [ ] No `<style>` blocks in EJS files
+- [ ] All animations defined in `style.css`
+- [ ] All utility classes in `style.css`
+- [ ] CSS works across all pages (not just one page)
+
+---
+
+### 5. Debugging & Logging
+
+#### Standardized Error Logging
+
+**Rule:** Implement standardized, actionable error logging with **Execution Context** information.
+
+**Required Log Format:**
+
+```javascript
+// ✅ Good - Comprehensive error logging
+catch (error) {
+  const executionContext = {
+    user: process.env.USER || 'unknown',
+    cwd: process.cwd(),
+    nodeVersion: process.version,
+    timestamp: new Date().toISOString(),
+    errorCode: error.code,
+    errorMessage: error.message
+  };
+  
+  console.error('[ComponentName] CRITICAL ERROR:', {
+    message: error.message,
+    code: error.code,
+    stack: error.stack,
+    context: executionContext
+  });
+  
+  // User-friendly message
+  req.flash('error', 'Terjadi kesalahan sistem. Silakan hubungi administrator.');
+  return res.redirect('/path');
+}
+```
+
+#### Execution Context Logging (Critical Errors)
+
+**Rule:** Mandate logging the current **Execution Context** whenever a critical error occurs.
+
+**Critical Error Types:**
+- `SQLITE_IOERR` / `SQLITE_IOERR_DELETE_NOENT`
+- `SQLITE_BUSY`
+- API timeouts (Mikrotik connection)
+- Authentication failures
+- Database connection failures
+
+**Example Implementation:**
+
+```javascript
+// ✅ Good - SQLite I/O Error with context
+catch (error) {
+  if (error.code && error.code.includes('SQLITE_IOERR')) {
+    const context = {
+      user: process.env.USER || 'unknown',
+      cwd: process.cwd(),
+      dbPath: path.join(__dirname, '..', 'hotspot.db'),
+      fileExists: fs.existsSync(path.join(__dirname, '..', 'hotspot.db')),
+      fileStats: fs.existsSync(path.join(__dirname, '..', 'hotspot.db')) 
+        ? fs.statSync(path.join(__dirname, '..', 'hotspot.db')) 
+        : null
+    };
+    
+    console.error('[Settings.get] ⚠️  SQLITE I/O ERROR:', {
+      error: error.message,
+      code: error.code,
+      context: context,
+      instructions: [
+        '1. Check file ownership: ls -l hotspot.db',
+        '2. Fix ownership: sudo chown -R [USER]:[USER] /path/to/project',
+        '3. Fix permissions: sudo chmod -R 775 /path/to/project',
+        '4. Ensure project is NOT in /root/ directory',
+        '5. Ensure app runs as dedicated user (not root)'
+      ]
+    });
+  }
+}
+
+// ✅ Good - Mikrotik API Timeout with context
+catch (error) {
+  if (error.message && error.message.includes('timeout')) {
+    const context = {
+      routerIp: settings.router_ip,
+      routerPort: settings.router_port,
+      routerUser: settings.router_user,
+      timestamp: new Date().toISOString(),
+      nodeVersion: process.version
+    };
+    
+    console.error('[MikrotikService] Connection timeout:', {
+      error: error.message,
+      context: context,
+      suggestions: [
+        '1. Check router IP address is correct',
+        '2. Verify router is accessible from server',
+        '3. Check firewall rules',
+        '4. Verify router API port (default: 8728)'
+      ]
+    });
+  }
+}
+```
+
+#### Logging Levels
+
+**Standard Logging Levels:**
+
+```javascript
+// ✅ Good - Appropriate log levels
+console.log('[Component] Info message');           // General information
+console.warn('[Component] Warning message');       // Non-critical issues
+console.error('[Component] Error message');       // Errors that need attention
+console.error('[Component] CRITICAL:', error);     // Critical errors (with context)
+```
+
+**When to Log:**
+
+| Level | When to Use | Example |
+|-------|-------------|---------|
+| `console.log` | Normal operation info | "User created successfully" |
+| `console.warn` | Non-critical issues | "Could not verify PRAGMA settings" |
+| `console.error` | Errors requiring attention | "Database connection failed" |
+| `console.error` (CRITICAL) | Critical errors with context | SQLITE_IOERR with execution context |
+
+**Pre-commit Checklist:**
+- [ ] All critical errors include execution context
+- [ ] Error messages are actionable (include instructions)
+- [ ] User-facing messages are in Bahasa Indonesia
+- [ ] Internal logs are in English
+- [ ] No sensitive data in logs (passwords, tokens)
+
+---
+
+### Maintenance Standards Summary
+
+#### Pre-Refactoring Checklist
+
+Before making any changes to forms, controllers, or database code:
+
+- [ ] **Flow Control:** Verify all response paths have `return` statements
+- [ ] **Form Integrity:** Document all form fields and their mappings
+- [ ] **Environment:** Verify deployment follows Linux user rules
+- [ ] **Database:** Verify shared connection pattern is used
+- [ ] **UI:** Verify no inline styles in EJS files
+- [ ] **Logging:** Verify error logging includes execution context
+
+#### Post-Refactoring Verification
+
+After making changes:
+
+- [ ] **Flow Control:** Test all response paths (success, error, validation)
+- [ ] **Form Integrity:** Verify all critical fields work end-to-end
+- [ ] **Database:** Test database operations (create, read, update)
+- [ ] **UI:** Test UI across all pages (not just modified page)
+- [ ] **Logging:** Verify error messages are helpful and actionable
+- [ ] **No Console Errors:** Check browser console and server logs
+
+---
+
+**Last Updated**: 2025-01-02
+**Version**: 2.1
+**Based on**: WORKFLOW.md v2.0 + Production Issue Resolution
+
+---
+
 ## References
 
 - [WORKFLOW.md](./WORKFLOW.md) - Project workflow documentation
 - [Node.js Best Practices](https://github.com/goldbergyoni/nodebestpractices)
 - [Express.js Security](https://expressjs.com/en/advanced/best-practice-security.html)
 - [Clean Code JavaScript](https://github.com/ryanmcdermott/clean-code-javascript)
-
----
-
-**Last Updated**: 2024
-**Version**: 2.0
-**Based on**: WORKFLOW.md v2.0

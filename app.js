@@ -4,7 +4,7 @@ const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
 const flash = require('connect-flash');
 const path = require('path');
-const Database = require('better-sqlite3');
+const { getDatabase, closeDatabase } = require('./models/db');
 const Settings = require('./models/Settings');
 const formatter = require('./utils/formatter');
 
@@ -13,20 +13,7 @@ const PORT = process.env.PORT || 3000;
 
 function verifyDatabaseSchema() {
   try {
-    const dbPath = path.join(__dirname, 'hotspot.db');
-    const db = new Database(dbPath);
-
-    // CRITICAL: Set journal mode to DELETE to prevent WAL file permission issues
-    try {
-      const journalMode = db.prepare('PRAGMA journal_mode').get();
-      if (journalMode && journalMode.journal_mode && journalMode.journal_mode.toUpperCase() === 'WAL') {
-        console.log('[Schema Check] Switching from WAL to DELETE journal mode to prevent permission issues');
-        db.exec('PRAGMA journal_mode=DELETE');
-        console.log('[Schema Check] ✓ Journal mode set to DELETE');
-      }
-    } catch (pragmaError) {
-      console.warn('[Schema Check] Could not set journal mode:', pragmaError.message);
-    }
+    const db = getDatabase();
 
     const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
     const columnNames = settingsColumns.map((col) => col.name);
@@ -56,8 +43,6 @@ function verifyDatabaseSchema() {
       db.exec("UPDATE settings SET school_name = 'SMAN 1 CONTOH' WHERE school_name IS NULL OR TRIM(school_name) = ''");
       schemaUpdated = true;
     }
-
-    db.close();
 
     if (schemaUpdated) {
       console.log('[Schema Check] ✓ Settings schema updated successfully');
@@ -107,13 +92,9 @@ app.use((req, res, next) => {
     error: req.flash('error'),
     warning: req.flash('warning')
   };
-  // CRITICAL: Load settings with error handling to prevent middleware crash
-  // Settings.get() now has built-in retry logic and returns empty object on critical failure
-  // This try-catch is extra safety layer
   try {
     const settings = Settings.get();
     
-    // Check if Settings.get() returned empty object (critical failure)
     if (!settings || Object.keys(settings).length === 0) {
       console.warn('[Middleware] Settings.get() returned empty object - using defaults');
       res.locals.settings = {
@@ -131,8 +112,6 @@ app.use((req, res, next) => {
       res.locals.settings = settings;
     }
   } catch (error) {
-    // This should not happen as Settings.get() now returns empty object on error
-    // But add extra safety to ensure middleware always continues
     console.error('[Middleware] Failed to load settings (unexpected):', error.message);
     console.error('[Middleware] Error code:', error.code);
     res.locals.settings = {
@@ -153,12 +132,9 @@ app.use((req, res, next) => {
 const routes = require('./routes');
 app.use('/', routes);
 
-// CRITICAL: Global error handler to catch unhandled errors
-// This prevents SQLITE_IOERR from crashing the entire application
 app.use((err, req, res, _next) => {
   console.error('Unhandled error:', err);
   
-  // Enhanced logging for SQLITE_IOERR
   if (err.code && (err.code.includes('SQLITE_IOERR') || err.code.includes('IOERR'))) {
     console.error('='.repeat(60));
     console.error('⚠️  UNHANDLED SQLITE I/O ERROR IN REQUEST');
@@ -171,7 +147,6 @@ app.use((err, req, res, _next) => {
   }
   
   if (!res.headersSent) {
-    // Don't send error details to client in production
     const errorMessage = process.env.NODE_ENV === 'development' 
       ? `Internal Server Error: ${err.message}` 
       : 'Internal Server Error';
@@ -183,7 +158,6 @@ app.use((err, req, res, _next) => {
   }
 });
 
-// CRITICAL: Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   if (reason && reason.code && (reason.code.includes('SQLITE_IOERR') || reason.code.includes('IOERR'))) {
@@ -192,7 +166,6 @@ process.on('unhandledRejection', (reason, promise) => {
   }
 });
 
-// CRITICAL: Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   if (error.code && (error.code.includes('SQLITE_IOERR') || error.code.includes('IOERR'))) {
@@ -200,7 +173,6 @@ process.on('uncaughtException', (error) => {
     console.error('Application will continue but database operations may fail.');
     console.error('Please fix file permissions and restart the application.');
   }
-  // Don't exit - let the application continue with error handling
 });
 
 app.use((req, res) => {
@@ -210,9 +182,22 @@ app.use((req, res) => {
   });
 });
 
+process.on('SIGINT', () => {
+  console.log('\n[SIGINT] Received SIGINT, closing database connection...');
+  closeDatabase();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n[SIGTERM] Received SIGTERM, closing database connection...');
+  closeDatabase();
+  process.exit(0);
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log('Make sure to run "npm run setup-db" to initialize the database');
+  console.log('[DB] Using shared database connection with synchronous=FULL for maximum durability');
 });
 
 module.exports = app;

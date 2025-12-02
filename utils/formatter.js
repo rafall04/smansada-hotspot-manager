@@ -10,7 +10,6 @@ function parseUptimeToSeconds(uptimeStr) {
   }
 
   try {
-    // Format: HH:MM:SS
     const timeParts = uptimeStr.split(':');
     if (timeParts.length === 3) {
       const hours = parseInt(timeParts[0], 10) || 0;
@@ -19,34 +18,28 @@ function parseUptimeToSeconds(uptimeStr) {
       return hours * 3600 + minutes * 60 + seconds;
     }
 
-    // Format: 2w1d10h30m50s or 1d2h3m4s or 2h30m15s or 30m15s or 15s
     let totalSeconds = 0;
 
-    // Week (w)
     const weekMatch = uptimeStr.match(/(\d+)w/);
     if (weekMatch) {
       totalSeconds += parseInt(weekMatch[1], 10) * 7 * 86400;
     }
 
-    // Day (d)
     const dayMatch = uptimeStr.match(/(\d+)d/);
     if (dayMatch) {
       totalSeconds += parseInt(dayMatch[1], 10) * 86400;
     }
 
-    // Hour (h)
     const hourMatch = uptimeStr.match(/(\d+)h/);
     if (hourMatch) {
       totalSeconds += parseInt(hourMatch[1], 10) * 3600;
     }
 
-    // Minute (m)
     const minuteMatch = uptimeStr.match(/(\d+)m/);
     if (minuteMatch) {
       totalSeconds += parseInt(minuteMatch[1], 10) * 60;
     }
 
-    // Second (s)
     const secondMatch = uptimeStr.match(/(\d+)s/);
     if (secondMatch) {
       totalSeconds += parseInt(secondMatch[1], 10);
@@ -126,7 +119,6 @@ function formatDateID(isoString) {
   try {
     let normalized = isoString.trim();
 
-    // Normalize SQLite format "YYYY-MM-DD HH:MM:SS" to ISO with UTC assumption
     if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(normalized)) {
       normalized = normalized.replace(' ', 'T') + 'Z';
     } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(normalized)) {

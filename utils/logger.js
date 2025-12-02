@@ -1,8 +1,4 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-
-const dbPath = path.join(__dirname, '..', 'hotspot.db');
-const db = new Database(dbPath);
+const { getDatabase } = require('../models/db');
 
 /**
  * Log user activity to audit_logs table
@@ -12,6 +8,7 @@ const db = new Database(dbPath);
  */
 function logActivity(req, action, details = null) {
   try {
+    const db = getDatabase();
     const userId = req.session ? req.session.userId : null;
     const username = req.session ? req.session.username : null;
     const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';

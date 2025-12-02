@@ -1,4 +1,4 @@
-const Database = require('better-sqlite3');
+const { getDatabase, checkpoint } = require('./db');
 const path = require('path');
 
 const dbPath = path.join(__dirname, '..', 'hotspot.db');
@@ -14,34 +14,15 @@ const dbPath = path.join(__dirname, '..', 'hotspot.db');
  * 1. Check file ownership: ls -l hotspot.db
  * 2. Fix ownership: sudo chown -R [USER]:[USER] /path/to/project
  * 3. Fix permissions: sudo chmod -R 775 /path/to/project
- * 4. See PERMISSIONS_WARNING.md for detailed instructions
+ * 4. See CODING_STANDARDS.md section "Environmental & Persistence Resilience" for detailed instructions
  * 
  * Without proper permissions, settings will be lost and Mikrotik connections will fail.
+ * 
+ * ⚠️ CRITICAL: Database Connection
+ * =================================
+ * This module now uses the SHARED database connection from models/db.js
+ * This ensures data consistency and proper commit behavior across all models.
  */
-
-// Create database connection with error handling
-let db;
-try {
-  db = new Database(dbPath, {
-    timeout: 5000,
-    verbose: process.env.NODE_ENV === 'development' ? console.log : null
-  });
-  
-  // CRITICAL: Set journal mode to DELETE to avoid WAL file permission issues
-  // WAL mode requires additional files (hotspot.db-wal, hotspot.db-shm) which can cause permission errors
-  try {
-    const journalMode = db.prepare('PRAGMA journal_mode').get();
-    if (journalMode && journalMode.journal_mode && journalMode.journal_mode.toUpperCase() === 'WAL') {
-      console.log('[Settings] Switching from WAL to DELETE journal mode to prevent permission issues');
-      db.exec('PRAGMA journal_mode=DELETE');
-    }
-  } catch (pragmaError) {
-    console.warn('[Settings] Could not set journal mode:', pragmaError.message);
-  }
-} catch (error) {
-  console.error('[Settings] Failed to initialize database connection:', error.message);
-  throw error;
-}
 
 /**
  * Helper function to sleep/delay (for retry backoff)
@@ -64,10 +45,7 @@ class Settings {
     
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        // Ensure database connection is still valid
-        if (!db || !db.open) {
-          throw new Error('Database connection is closed');
-        }
+        const db = getDatabase();
         
         const result = db.prepare('SELECT * FROM settings WHERE id = 1').get();
 
@@ -138,7 +116,7 @@ class Settings {
           console.error('  4. Remove journal files: rm -f hotspot.db-journal hotspot.db-wal hotspot.db-shm');
           console.error('  5. Set journal mode: sqlite3 hotspot.db "PRAGMA journal_mode=DELETE;"');
           console.error('  6. Update PM2: pm2 delete smansada-hotspot && cd /home/$(whoami)/hotspot-manager && pm2 start ecosystem.config.js');
-          console.error('  7. See PERMISSIONS_WARNING.md for detailed instructions');
+          console.error('  7. See CODING_STANDARDS.md section "Environmental & Persistence Resilience" for detailed instructions');
           console.error('='.repeat(60));
           
           // Single retry with minimal delay (100ms) to avoid blocking
@@ -180,10 +158,7 @@ class Settings {
     
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        // Ensure database connection is still valid
-        if (!db || !db.open) {
-          throw new Error('Database connection is closed');
-        }
+        const db = getDatabase();
         
         const existing = db.prepare('SELECT id FROM settings WHERE id = 1').get();
         const columns = db.prepare('PRAGMA table_info(settings)').all();
@@ -241,7 +216,12 @@ class Settings {
           const updateQuery = `UPDATE settings SET ${fields.join(', ')} WHERE id = 1`;
           const stmt = db.prepare(updateQuery);
           const result = stmt.run(...values);
-          console.log('[Settings] Updated successfully');
+          
+          // CRITICAL: Force checkpoint to ensure data is written to disk
+          // This prevents data loss if the application crashes or is restarted
+          checkpoint();
+          
+          console.log('[Settings] Updated successfully (data flushed to disk)');
           return result;
         } else {
           const insertFields = ['id', ...fields.map(f => f.split(' = ')[0])];
@@ -249,7 +229,11 @@ class Settings {
           const insertValues = [1, ...values];
           const stmt = db.prepare(`INSERT INTO settings (${insertFields.join(', ')}) VALUES (${insertPlaceholders})`);
           const result = stmt.run(...insertValues);
-          console.log('[Settings] Inserted successfully');
+          
+          // CRITICAL: Force checkpoint to ensure data is written to disk
+          checkpoint();
+          
+          console.log('[Settings] Inserted successfully (data flushed to disk)');
           return result;
         }
       } catch (error) {

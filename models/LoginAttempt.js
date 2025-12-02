@@ -1,12 +1,9 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-
-const dbPath = path.join(__dirname, '..', 'hotspot.db');
-const db = new Database(dbPath);
+const { getDatabase } = require('./db');
 
 class LoginAttempt {
   static recordAttempt(userId, ipAddress, status = 'FAILED') {
     try {
+      const db = getDatabase();
       const stmt = db.prepare(`
         INSERT INTO login_attempts (user_id, ip_address, timestamp, status)
         VALUES (?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), ?)
@@ -25,6 +22,7 @@ class LoginAttempt {
 
   static updateStatus(attemptId, status = 'LOCKED') {
     try {
+      const db = getDatabase();
       db.prepare('UPDATE login_attempts SET status = ? WHERE id = ?').run(status, attemptId);
     } catch (error) {
       console.error('Error updating login attempt status:', error);
@@ -33,6 +31,7 @@ class LoginAttempt {
 
   static getAttemptCount(userId, windowSeconds) {
     try {
+      const db = getDatabase();
       const window = `-${windowSeconds} seconds`;
       const row = db
         .prepare(
@@ -58,6 +57,7 @@ class LoginAttempt {
 
   static clearAttempts(userId) {
     try {
+      const db = getDatabase();
       db.prepare('DELETE FROM login_attempts WHERE user_id = ?').run(userId);
     } catch (error) {
       console.error('Error clearing login attempts:', error);
@@ -66,6 +66,7 @@ class LoginAttempt {
 
   static isLockedOut(userId, lockoutSeconds) {
     try {
+      const db = getDatabase();
       const row = db
         .prepare(
           `
