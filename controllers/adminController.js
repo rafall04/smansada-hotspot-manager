@@ -275,21 +275,59 @@ class AdminController {
 
   /**
    * Update Router Settings
+   * 
+   * CRITICAL: File System Permissions Fix Required
+   * ===============================================
+   * If you encounter SQLITE_IOERR_DELETE_NOENT errors, this indicates a file system
+   * permissions issue. The database file must be writable by the user running PM2.
+   * 
+   * EXECUTE THE FOLLOWING COMMANDS ON YOUR UBUNTU SERVER:
+   * 
+   * # 1. Identify the user running PM2
+   * ps aux | grep pm2
+   * 
+   * # 2. Fix ownership (replace 'root' with your PM2 user if different)
+   * sudo chown -R root:root /root/smansada-hotspot-manager
+   * 
+   * # 3. Fix permissions
+   * sudo chmod -R 775 /root/smansada-hotspot-manager
+   * sudo chmod 664 /root/smansada-hotspot-manager/hotspot.db
+   * 
+   * # 4. Re-run database setup after fixing permissions
+   * npm run setup-db
+   * 
+   * # 5. Restart PM2
+   * pm2 restart smansada-hotspot
+   * 
+   * Without proper permissions, router password and other settings will be lost
+   * due to database write failures.
    */
   static async updateSettings(req, res) {
     try {
+      if (res.headersSent) return;
+      
       const validationResponse = respondValidationErrors(req, res, '/admin/settings');
       if (validationResponse) {
         return validationResponse;
       }
 
+      if (res.headersSent) return;
+
       const { router_ip, router_port, router_user, router_password } = req.body;
 
+      // Get current settings to preserve existing password if new one is not provided
       const currentSettings = Settings.get();
       let routerPasswordEncrypted = currentSettings.router_password_encrypted || '';
 
+      // Encrypt new password if provided
       if (router_password && router_password.trim() !== '') {
-        routerPasswordEncrypted = cryptoHelper.encrypt(router_password);
+        try {
+          routerPasswordEncrypted = cryptoHelper.encrypt(router_password);
+        } catch (encryptError) {
+          console.error('[Settings] Encryption error:', encryptError.message);
+          req.flash('error', 'Gagal mengenkripsi password router');
+          return res.redirect('/admin/settings');
+        }
       } else if (!routerPasswordEncrypted || routerPasswordEncrypted.trim() === '') {
         req.flash('error', 'Password harus diisi');
         return res.redirect('/admin/settings');
@@ -311,14 +349,34 @@ class AdminController {
         school_name: schoolName
       };
 
-      Settings.update(updateData);
-      console.log('[Settings] Router and notification settings updated');
+      // CRITICAL: Save to database with error handling
+      try {
+        Settings.update(updateData);
+        console.log('[Settings] Router and notification settings updated successfully');
+      } catch (dbError) {
+        console.error('[Settings] Database write error:', dbError.message);
+        console.error('[Settings] Error code:', dbError.code);
+        
+        // Check for permission errors
+        if (dbError.code === 'SQLITE_IOERR_DELETE_NOENT' || dbError.code === 'SQLITE_IOERR') {
+          req.flash('error', 'Gagal menyimpan settings: Masalah permission database. Lihat log server untuk instruksi perbaikan.');
+          console.error('\n⚠️  CRITICAL: Database permission error detected!');
+          console.error('   Please run the following commands on your Ubuntu server:');
+          console.error('   sudo chown -R $(whoami):$(whoami) /root/smansada-hotspot-manager');
+          console.error('   sudo chmod -R 775 /root/smansada-hotspot-manager');
+          console.error('   npm run setup-db\n');
+        } else {
+          req.flash('error', 'Gagal menyimpan settings: ' + dbError.message);
+        }
+        return res.redirect('/admin/settings');
+      }
 
       logActivity(req, 'UPDATE_SETTINGS', 'Router settings updated');
 
       req.flash('success', 'Settings berhasil diperbarui');
       return res.redirect('/admin/settings');
     } catch (error) {
+      if (res.headersSent) return;
       console.error('Update settings error:', error);
       req.flash('error', 'Gagal memperbarui settings: ' + error.message);
       return res.redirect('/admin/settings');

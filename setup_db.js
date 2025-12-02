@@ -111,18 +111,44 @@ async function setupDatabase() {
     } else {
       const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
       const settingsColumnNames = settingsColumns.map((col) => col.name);
+      let schemaUpdated = false;
 
+      // CRITICAL: Ensure router_password_encrypted column exists
+      if (!settingsColumnNames.includes('router_password_encrypted')) {
+        console.log('  Adding router_password_encrypted column...');
+        try {
+          db.exec(
+            'ALTER TABLE settings ADD COLUMN router_password_encrypted TEXT NOT NULL DEFAULT ""'
+          );
+          schemaUpdated = true;
+          console.log('  ✓ router_password_encrypted column added');
+        } catch (error) {
+          console.error('  ❌ Failed to add router_password_encrypted column:', error.message);
+        }
+      }
+
+      // Migration: If old router_password exists but encrypted doesn't, migrate
       if (
         settingsColumnNames.includes('router_password') &&
         !settingsColumnNames.includes('router_password_encrypted')
       ) {
         console.log('  Migrating router_password to router_password_encrypted...');
-        db.exec(
-          'ALTER TABLE settings ADD COLUMN router_password_encrypted TEXT NOT NULL DEFAULT ""'
-        );
-        console.log('  ⚠️  Note: Existing router passwords need to be re-entered and encrypted');
+        try {
+          db.exec(
+            'ALTER TABLE settings ADD COLUMN router_password_encrypted TEXT NOT NULL DEFAULT ""'
+          );
+          schemaUpdated = true;
+          console.log('  ⚠️  Note: Existing router passwords need to be re-entered and encrypted');
+        } catch (error) {
+          console.error('  ❌ Migration failed:', error.message);
+        }
       }
-      console.log('✓ Settings table already exists\n');
+
+      if (schemaUpdated) {
+        console.log('✓ Settings schema updated\n');
+      } else {
+        console.log('✓ Settings table already exists\n');
+      }
     }
 
     console.log('Setting up audit_logs table...');

@@ -41,15 +41,16 @@ class MikrotikService {
   }
 
   /**
-   * Connect to router with 3-second timeout
+   * Connect to router with 5-second timeout
+   * Increased from 3 seconds to account for network variability and busy routers in production
    * @param {RouterOSAPI} conn - RouterOSAPI connection instance
    * @returns {Promise<void>}
    */
   static async connectWithTimeout(conn) {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
-        reject(new Error('Connection timeout: Router did not respond within 3 seconds'));
-      }, 3000);
+        reject(new Error('Koneksi ke Router Gagal. Cek Sandi/IP Router atau pastikan Router dapat dijangkau.'));
+      }, 5000);
     });
 
     return Promise.race([
@@ -68,6 +69,19 @@ class MikrotikService {
       conn.close();
       return { success: true, message: 'Koneksi berhasil' };
     } catch (error) {
+      // Provide clear error message for connection failures
+      let userFriendlyMessage = 'Koneksi ke Router Gagal. Cek Sandi/IP Router.';
+      
+      if (error.message && error.message.includes('Koneksi ke Router Gagal')) {
+        userFriendlyMessage = error.message;
+      } else if (error.message && error.message.includes('timeout')) {
+        userFriendlyMessage = 'Koneksi ke Router Gagal. Router tidak merespons dalam 5 detik. Cek koneksi jaringan dan IP Router.';
+      } else if (error.message && (error.message.includes('password') || error.message.includes('authentication'))) {
+        userFriendlyMessage = 'Koneksi ke Router Gagal. Password atau username salah.';
+      } else if (error.message && error.message.includes('ECONNREFUSED')) {
+        userFriendlyMessage = 'Koneksi ke Router Gagal. Router tidak dapat dijangkau. Cek IP dan port Router.';
+      }
+
       const currentTime = new Date().toLocaleString('id-ID', {
         weekday: 'long',
         year: 'numeric',
@@ -88,9 +102,10 @@ class MikrotikService {
       sendTelegramMessage(errorMessage).catch(err => {
         console.error('[Telegram] Notification error:', err.message);
       });
+      
       return {
         success: false,
-        message: `Gagal terhubung: ${error.message}`
+        message: userFriendlyMessage
       };
     }
   }
