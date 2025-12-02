@@ -99,6 +99,7 @@ npm install
 
 - Ubuntu 20.04 default g++ (versi 9) tidak mendukung C++20
 - `better-sqlite3` memerlukan C++20 untuk kompilasi native module
-- Node.js v24 memerlukan compiler yang lebih baru
-- Disarankan menggunakan Node.js LTS (v20) untuk stabilitas
+- **PENTING**: Node.js v24 TIDAK kompatibel dengan `better-sqlite3` v9.2.2
+- **WAJIB**: Gunakan Node.js LTS (v20.x) untuk kompatibilitas
+- Node.js v24 menggunakan V8 API yang berbeda, menyebabkan error kompilasi
 

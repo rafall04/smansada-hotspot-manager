@@ -37,6 +37,23 @@ echo "[6/7] Verifying compiler version..."
 g++ --version
 gcc --version
 
+# Check Node.js version
+echo "[6.5/7] Checking Node.js version..."
+NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+if [ "$NODE_VERSION" -ge 24 ]; then
+    echo "WARNING: Node.js v24+ detected. better-sqlite3 requires Node.js LTS (v20)."
+    echo "Installing Node.js LTS using nvm..."
+    if ! command -v nvm &> /dev/null; then
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    fi
+    nvm install 20
+    nvm use 20
+    nvm alias default 20
+    echo "Node.js version: $(node -v)"
+fi
+
 # Install Node modules
 echo "[7/7] Installing Node.js dependencies..."
 npm cache clean --force
