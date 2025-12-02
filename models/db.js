@@ -1,7 +1,11 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
-const dbPath = path.join(__dirname, '..', 'hotspot.db');
+// CRITICAL: Use absolute path to ensure database location is consistent
+// regardless of where PM2 or Node.js is started from
+const projectRoot = path.resolve(__dirname, '..');
+const dbPath = path.join(projectRoot, 'hotspot.db');
 
 /**
  * ⚠️ CRITICAL: SINGLE SHARED DATABASE CONNECTION
@@ -40,6 +44,36 @@ function getDatabase() {
 
   try {
     console.log('[DB] Initializing shared database connection...');
+    console.log('[DB] Project root:', projectRoot);
+    console.log('[DB] Database path:', dbPath);
+    console.log('[DB] Current working directory:', process.cwd());
+    console.log('[DB] __dirname:', __dirname);
+    
+    // Verify database directory is writable
+    const dbDir = path.dirname(dbPath);
+    try {
+      fs.accessSync(dbDir, fs.constants.W_OK);
+      console.log('[DB] ✓ Database directory is writable');
+    } catch (accessError) {
+      console.error('[DB] ❌ Database directory is NOT writable:', dbDir);
+      console.error('[DB] Permission error:', accessError.message);
+      throw new Error(`Database directory is not writable: ${dbDir}. Check permissions.`);
+    }
+    
+    // Verify database file is writable (if it exists)
+    if (fs.existsSync(dbPath)) {
+      try {
+        fs.accessSync(dbPath, fs.constants.W_OK);
+        console.log('[DB] ✓ Database file is writable');
+      } catch (accessError) {
+        console.error('[DB] ❌ Database file is NOT writable:', dbPath);
+        console.error('[DB] Permission error:', accessError.message);
+        throw new Error(`Database file is not writable: ${dbPath}. Check permissions.`);
+      }
+    } else {
+      console.log('[DB] Database file does not exist yet (will be created)');
+    }
+    
     db = new Database(dbPath, {
       timeout: 10000, // 10 seconds timeout for locks
       verbose: process.env.NODE_ENV === 'development' ? console.log : null
@@ -101,6 +135,7 @@ function closeDatabase() {
 /**
  * Force checkpoint/flush to ensure all data is written to disk
  * This is useful after critical writes (e.g., saving router password)
+ * CRITICAL: This function ensures data persistence, especially important for PM2
  */
 function checkpoint() {
   if (db && db.open) {
@@ -110,9 +145,15 @@ function checkpoint() {
       db.pragma('optimize');
       // Also ensure any pending writes are committed
       db.exec('BEGIN IMMEDIATE; COMMIT;');
+      // Force sync to disk (synchronous=FULL already set, but this ensures it)
+      db.pragma('synchronous = FULL');
+      console.log('[DB] ✓ Checkpoint completed - data flushed to disk');
     } catch (error) {
       console.warn('[DB] Checkpoint warning:', error.message);
+      console.warn('[DB] Error code:', error.code);
     }
+  } else {
+    console.warn('[DB] Checkpoint skipped - database not open');
   }
 }
 
