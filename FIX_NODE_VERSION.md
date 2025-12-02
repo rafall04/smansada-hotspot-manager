@@ -2,7 +2,17 @@
 
 ## Masalah
 
-Error kompilasi `better-sqlite3` terjadi karena **Node.js v24.11.1 TIDAK kompatibel** dengan `better-sqlite3` v9.2.2.
+Error runtime `better-sqlite3` terjadi karena **Node.js v24.11.1 TIDAK kompatibel** dengan `better-sqlite3` v9.2.2.
+
+### Error yang Muncul
+
+```
+Error: The module was compiled against a different Node.js version using
+NODE_MODULE_VERSION 115. This version of Node.js requires
+NODE_MODULE_VERSION 137.
+```
+
+Ini berarti module dikompilasi untuk Node.js v20 (NODE_MODULE_VERSION 115), tapi Anda menjalankan Node.js v24 (NODE_MODULE_VERSION 137).
 
 ### Root Cause
 
@@ -12,7 +22,19 @@ Node.js v24 menggunakan V8 API yang berbeda dari versi sebelumnya. `better-sqlit
 - Struktur `Addon` tidak memiliki member yang diharapkan
 - V8 API changes di Node.js v24
 
-## Solusi: Downgrade ke Node.js LTS (v20)
+## Solusi Cepat: Rebuild Module (Temporary Fix)
+
+Jika Anda tetap ingin menggunakan Node.js v24, coba rebuild module:
+
+```bash
+npm rebuild better-sqlite3
+# atau
+npm rebuild
+```
+
+**CATATAN**: Rebuild mungkin masih gagal karena incompatibility V8 API. Jika gagal, **WAJIB** downgrade ke Node.js v20.
+
+## Solusi Permanen: Downgrade ke Node.js LTS (v20)
 
 ### Opsi 1: Menggunakan NVM (Recommended)
 
