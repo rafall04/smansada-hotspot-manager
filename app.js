@@ -95,11 +95,24 @@ app.use((req, res, next) => {
     error: req.flash('error'),
     warning: req.flash('warning')
   };
+  // CRITICAL: Load settings with error handling to prevent middleware crash
+  // Settings.get() now has built-in retry logic and always returns defaults on error
+  // This try-catch is extra safety layer
   try {
     res.locals.settings = Settings.get();
   } catch (error) {
-    console.error('[Settings Middleware] Failed to load settings:', error.message);
+    // This should not happen as Settings.get() now returns defaults on error
+    // But add extra safety to ensure middleware always continues
+    console.error('[Middleware] Failed to load settings (unexpected):', error.message);
+    console.error('[Middleware] Error code:', error.code);
     res.locals.settings = {
+      router_ip: '192.168.88.1',
+      router_port: 8728,
+      router_user: 'admin',
+      router_password_encrypted: '',
+      hotspot_dns_name: '',
+      telegram_bot_token: '',
+      telegram_chat_id: '',
       school_name: 'SMAN 1 CONTOH'
     };
   }
