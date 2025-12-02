@@ -292,12 +292,31 @@ async function setupDatabase() {
 
     if (!settingsExists) {
       console.log('Initializing default router settings...');
-      db.prepare(
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      const settingsColumnNames = settingsColumns.map((col) => col.name);
+      
+      if (settingsColumnNames.includes('router_password_encrypted')) {
+        db.prepare(
+          `
+          INSERT INTO settings (id, router_ip, router_port, router_user, router_password_encrypted)
+          VALUES (1, '192.168.88.1', 8728, 'admin', '')
         `
-        INSERT INTO settings (id, router_ip, router_port, router_user, router_password)
-        VALUES (1, '192.168.88.1', 8728, 'admin', 'admin')
-      `
-      ).run();
+        ).run();
+      } else if (settingsColumnNames.includes('router_password')) {
+        db.prepare(
+          `
+          INSERT INTO settings (id, router_ip, router_port, router_user, router_password)
+          VALUES (1, '192.168.88.1', 8728, 'admin', 'admin')
+        `
+        ).run();
+      } else {
+        db.prepare(
+          `
+          INSERT INTO settings (id, router_ip, router_port, router_user)
+          VALUES (1, '192.168.88.1', 8728, 'admin')
+        `
+        ).run();
+      }
       console.log('✓ Default settings initialized\n');
     } else {
       console.log('✓ Settings already initialized\n');
