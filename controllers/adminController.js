@@ -1895,7 +1895,14 @@ class AdminController {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Replace database with uploaded file
-      fs.copyFileSync(uploadedFile.path, dbPath);
+      try {
+        fs.copyFileSync(uploadedFile.path, dbPath);
+        console.log('[RestoreDatabase] Database file replaced successfully');
+      } catch (copyError) {
+        fs.unlinkSync(uploadedFile.path);
+        req.flash('error', 'Gagal mengganti database: ' + copyError.message + '. Pastikan aplikasi tidak sedang mengakses database.');
+        return res.redirect('/admin/settings');
+      }
 
       // Fix permissions
       try {
