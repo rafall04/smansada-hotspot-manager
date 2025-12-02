@@ -1,5 +1,24 @@
 # PM2 Troubleshooting Guide
 
+## Masalah: Login Tidak Bisa dengan PM2 (Session Issue)
+
+### Gejala
+- `npm start` bekerja dengan baik (login berhasil)
+- `pm2 start ecosystem.config.js` - login tidak berhasil (kembali ke halaman login)
+- `pm2 start app.js` - login berhasil
+- Username/password benar, tetapi session tidak tersimpan
+
+**Penyebab:**
+- PM2 menggunakan working directory yang berbeda saat membaca `ecosystem.config.js`
+- Session store (`connect-sqlite3`) menggunakan path relatif `dir: './'`
+- Working directory PM2 berbeda dari project directory
+
+**Solusi:**
+- Gunakan absolute path untuk `script` dan `cwd` di `ecosystem.config.js`
+- Atau gunakan `pm2 start app.js` langsung (tanpa config file)
+
+---
+
 ## Masalah: Database Tidak Tersimpan dengan PM2
 
 ### Gejala

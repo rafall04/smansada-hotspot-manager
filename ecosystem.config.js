@@ -1,11 +1,16 @@
 const path = require('path');
 
+// CRITICAL: Resolve absolute paths to ensure PM2 uses correct working directory
+// This fixes session store issues where PM2 may use different cwd than npm start
+const projectRoot = path.resolve(__dirname);
+const scriptPath = path.join(projectRoot, 'app.js');
+
 module.exports = {
   apps: [
     {
       name: 'smansada-hotspot',
-      script: 'app.js',
-      cwd: __dirname,
+      script: scriptPath, // Use absolute path for script
+      cwd: projectRoot, // Use absolute path for working directory
       instances: 1,
       exec_mode: 'fork',
       watch: false,
@@ -14,8 +19,8 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3000
       },
-      error_file: path.join(__dirname, 'logs', 'pm2-error.log'),
-      out_file: path.join(__dirname, 'logs', 'pm2-out.log'),
+      error_file: path.join(projectRoot, 'logs', 'pm2-error.log'),
+      out_file: path.join(projectRoot, 'logs', 'pm2-out.log'),
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       autorestart: true,

@@ -98,6 +98,7 @@ class AuthController {
       const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
       if (!passwordMatch) {
+        console.log('[Login] Password mismatch for user:', username);
         let attemptId = null;
         let attemptCount = 0;
         try {
@@ -131,6 +132,26 @@ class AuthController {
       req.session.userId = user.id;
       req.session.username = user.username;
       req.session.role = user.role;
+
+      // CRITICAL: Save session explicitly and verify
+      req.session.save((err) => {
+        if (err) {
+          console.error('[Login] Session save error:', err.message);
+          console.error('[Login] Session error code:', err.code);
+          return res.render('auth/login', {
+            title: 'Login',
+            error: 'Gagal menyimpan session. Silakan coba lagi.',
+            lockoutMessage: null
+          });
+        }
+        console.log('[Login] Session saved successfully for user:', user.username);
+        console.log('[Login] Session ID:', req.sessionID);
+        console.log('[Login] Session data:', {
+          userId: req.session.userId,
+          username: req.session.username,
+          role: req.session.role
+        });
+      });
 
       logActivity(req, 'LOGIN', `User: ${user.username}`);
 
