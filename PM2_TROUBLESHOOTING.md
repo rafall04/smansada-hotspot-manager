@@ -14,8 +14,8 @@
 - Working directory PM2 berbeda dari project directory
 
 **Solusi:**
-- Gunakan absolute path untuk `script` dan `cwd` di `ecosystem.config.js`
-- Atau gunakan `pm2 start app.js` langsung (tanpa config file)
+- ✅ **RECOMMENDED:** Gunakan `pm2 start app.js` langsung (tanpa config file)
+- Atau gunakan absolute path untuk `script` dan `cwd` di `ecosystem.config.js` (jika perlu)
 
 ---
 
@@ -93,11 +93,41 @@ pm2 info smansada-hotspot | grep "username"
 
 ## ✅ Solusi
 
-### Solusi 1: Update ecosystem.config.js (SUDAH DIPERBAIKI)
+### Solusi 1: Gunakan `pm2 start app.js` (RECOMMENDED)
+
+**Cara terbaik dan paling sederhana:**
+
+```bash
+# Start PM2 langsung dengan app.js
+pm2 start app.js --name smansada-hotspot
+
+# Save PM2 configuration
+pm2 save
+
+# Setup PM2 startup (hanya sekali)
+pm2 startup
+# (ikuti instruksi yang muncul)
+
+# Verify
+pm2 list
+pm2 logs smansada-hotspot
+```
+
+**Keuntungan:**
+- ✅ Working directory otomatis benar (current directory)
+- ✅ Session store bekerja dengan benar
+- ✅ Database path konsisten
+- ✅ Tidak perlu config file yang kompleks
+
+---
+
+### Solusi 2: Update ecosystem.config.js (ALTERNATIVE)
+
+Jika Anda ingin menggunakan config file, pastikan menggunakan absolute path:
 
 File `ecosystem.config.js` sudah diperbarui dengan:
-- `cwd: __dirname` - Memastikan PM2 menggunakan directory project
-- Absolute path untuk log files
+- `cwd: projectRoot` - Memastikan PM2 menggunakan directory project
+- Absolute path untuk script dan log files
 - Explicit working directory
 
 **Verifikasi:**
@@ -121,7 +151,7 @@ pm2 logs smansada-hotspot --lines 20
 
 ---
 
-### Solusi 2: Fix Permission
+### Solusi 3: Fix Permission
 
 ```bash
 # Stop PM2
