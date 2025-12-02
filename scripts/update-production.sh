@@ -32,19 +32,30 @@ else
     # Create backup directory if it doesn't exist
     mkdir -p "$BACKUP_DIR"
     
-    # Backup database
+    # Backup database using backup script
     echo "Creating database backup..."
-    cp "$DB_FILE" "$BACKUP_FILE"
-    
-    if [ -f "$BACKUP_FILE" ]; then
-        echo "✓ Backup created: $BACKUP_FILE"
-        DB_SIZE=$(du -h "$DB_FILE" | cut -f1)
-        BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
-        echo "  Database size: $DB_SIZE"
-        echo "  Backup size: $BACKUP_SIZE"
+    if [ -f "scripts/backup-database.sh" ]; then
+        chmod +x scripts/backup-database.sh 2>/dev/null || true
+        bash scripts/backup-database.sh
+        # Get the latest backup file (most recent)
+        BACKUP_FILE=$(ls -1t "$BACKUP_DIR"/hotspot_*.db 2>/dev/null | head -1)
+        if [ -z "$BACKUP_FILE" ]; then
+            echo "❌ ERROR: Backup script failed to create backup!"
+            exit 1
+        fi
     else
-        echo "❌ ERROR: Failed to create backup!"
-        exit 1
+        # Fallback: simple backup if script doesn't exist
+        cp "$DB_FILE" "$BACKUP_FILE"
+        if [ -f "$BACKUP_FILE" ]; then
+            echo "✓ Backup created: $BACKUP_FILE"
+            DB_SIZE=$(du -h "$DB_FILE" | cut -f1)
+            BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+            echo "  Database size: $DB_SIZE"
+            echo "  Backup size: $BACKUP_SIZE"
+        else
+            echo "❌ ERROR: Failed to create backup!"
+            exit 1
+        fi
     fi
     echo ""
 fi

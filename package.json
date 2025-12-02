@@ -16,7 +16,7 @@
     "pm2:monit": "pm2 monit",
     "db:diagnose": "node scripts/diagnose-db.js",
     "db:repair": "node scripts/diagnose-db.js --repair",
-    "db:backup": "node scripts/diagnose-db.js --backup",
+    "db:backup": "bash scripts/backup-database.sh",
     "perms:diagnose": "bash scripts/diagnose-permissions.sh",
     "perms:fix": "bash scripts/fix-permissions.sh",
     "lint": "eslint . --ext .js",

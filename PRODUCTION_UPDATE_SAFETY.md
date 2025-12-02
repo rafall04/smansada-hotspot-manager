@@ -8,6 +8,30 @@
 
 ## 🛡️ Lapisan Perlindungan Database
 
+### 0. **Database TIDAK Di-Track oleh Git (CRITICAL)**
+
+**✅ Sudah Dikonfigurasi:**
+- `*.db` sudah di `.gitignore` - semua file database di-ignore
+- `backups/` sudah di `.gitignore` - folder backup di-ignore
+- Database **TIDAK PERNAH** akan ter-commit ke git
+
+**Verifikasi:**
+```bash
+# Cek apakah database di-ignore
+git check-ignore hotspot.db
+# Output: hotspot.db (berarti di-ignore ✅)
+
+# Cek apakah database di-track
+git ls-files hotspot.db
+# Output: (kosong, berarti tidak di-track ✅)
+```
+
+**Mengapa Penting:**
+- Database berisi data production yang sensitif
+- Database berubah setiap saat (conflict risk jika di-track)
+- Database besar (memperlambat git operations)
+- Database tidak perlu version control (gunakan backup)
+
 ### 1. **Backup Otomatis Sebelum Update**
 - ✅ Database di-backup ke `backups/hotspot_YYYYMMDD_HHMMSS.db`
 - ✅ Backup dibuat SEBELUM operasi git apapun
