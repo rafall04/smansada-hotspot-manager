@@ -276,6 +276,14 @@ class User {
             
             const originalComment = user.mikrotik_comment || null;
             const originalCommentId = user.mikrotik_comment_id || null;
+            const originalUsername = user.username || null;
+            
+            if (originalUsername) {
+              const tempUsername = originalUsername + '_TEMP_' + oldId;
+              console.log(`[User.renumberIds] Updating username for user ${oldId}: "${originalUsername}" -> "${tempUsername}"`);
+              const updateUsernameStmt = db.prepare('UPDATE users SET username = ? WHERE id = ?');
+              updateUsernameStmt.run(tempUsername, oldId);
+            }
             
             if (originalComment) {
               const tempComment = originalComment + '_TEMP_' + oldId;
@@ -291,6 +299,7 @@ class User {
               updateCommentIdStmt.run(tempCommentId, oldId);
             }
             
+            userData.username = originalUsername;
             userData.mikrotik_comment = originalComment;
             userData.mikrotik_comment_id = originalCommentId;
             
@@ -341,13 +350,29 @@ class User {
               columnInfo[col.name] = col;
             });
             
+            const tempUsername = tempUser.username || null;
+            const tempComment = tempUser.mikrotik_comment || null;
+            const tempCommentId = tempUser.mikrotik_comment_id || null;
+            
+            const originalUsername = tempUsername ? tempUsername.replace('_TEMP_' + oldId, '') : null;
+            const originalComment = tempComment ? tempComment.replace('_TEMP_' + oldId, '') : null;
+            const originalCommentId = tempCommentId ? tempCommentId.replace('_TEMP_' + oldId, '') : null;
+            
             const userData = {};
             const fieldsToInsert = [];
             const valuesToInsert = [];
             
             dataFields.forEach(field => {
               const colInfo = columnInfo[field];
-              const value = tempUser[field];
+              let value = tempUser[field];
+              
+              if (field === 'username' && originalUsername) {
+                value = originalUsername;
+              } else if (field === 'mikrotik_comment' && originalComment) {
+                value = originalComment;
+              } else if (field === 'mikrotik_comment_id' && originalCommentId) {
+                value = originalCommentId;
+              }
               
               if (colInfo && colInfo.notnull && (value === null || value === undefined)) {
                 if (field === 'mikrotik_comment' || field === 'mikrotik_comment_id') {
