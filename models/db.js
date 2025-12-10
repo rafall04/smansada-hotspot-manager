@@ -46,7 +46,6 @@ function getDatabase() {
     const dbDir = path.dirname(dbPath);
     try {
       fs.accessSync(dbDir, fs.constants.W_OK);
-      console.log('[DB] ✓ Database directory is writable');
     } catch (accessError) {
       console.error('[DB] ❌ Database directory is NOT writable:', dbDir);
       console.error('[DB] Permission error:', accessError.message);
@@ -56,14 +55,11 @@ function getDatabase() {
     if (fs.existsSync(dbPath)) {
       try {
         fs.accessSync(dbPath, fs.constants.W_OK);
-        console.log('[DB] ✓ Database file is writable');
       } catch (accessError) {
         console.error('[DB] ❌ Database file is NOT writable:', dbPath);
         console.error('[DB] Permission error:', accessError.message);
         throw new Error(`Database file is not writable: ${dbPath}. Check permissions.`);
       }
-    } else {
-      console.log('[DB] Database file does not exist yet (will be created)');
     }
     
     db = new Database(dbPath, {

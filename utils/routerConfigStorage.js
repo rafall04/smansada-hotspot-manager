@@ -2,7 +2,7 @@ const cryptoHelper = require('./cryptoHelper');
 
 /**
  * Router Configuration Storage - Environment Variables Only
- * 
+ *
  * Router configuration (IP, username, password) is ONLY read from environment variables.
  * This ensures maximum reliability and prevents data loss after reboot.
  * 
@@ -33,9 +33,15 @@ function getFromEnv() {
   let routerPasswordEncrypted = process.env.ROUTER_PASSWORD_ENCRYPTED;
 
   // Fallback to legacy format (MIKROTIK_*)
-  if (!routerIp) routerIp = process.env.MIKROTIK_HOST;
-  if (!routerPort) routerPort = process.env.MIKROTIK_PORT;
-  if (!routerUser) routerUser = process.env.MIKROTIK_USER;
+  if (!routerIp) {
+    routerIp = process.env.MIKROTIK_HOST;
+  }
+  if (!routerPort) {
+    routerPort = process.env.MIKROTIK_PORT;
+  }
+  if (!routerUser) {
+    routerUser = process.env.MIKROTIK_USER;
+  }
   if (!routerPasswordEncrypted) {
     // Legacy format might have plain password, need to encrypt it
     const legacyPassword = process.env.MIKROTIK_PASSWORD;
@@ -80,7 +86,7 @@ let configLoaded = false;
 
 function getRouterConfig() {
   const envConfig = getFromEnv();
-  
+
   if (!configLoaded) {
     console.log('[RouterConfigStorage] ✓ Router config loaded from environment variables (ONLY SOURCE)');
     configLoaded = true;

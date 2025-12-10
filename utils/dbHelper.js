@@ -33,7 +33,7 @@ function checkDatabaseIntegrity() {
     }
 
     const db = new Database(dbPath);
-    
+
     const integrityCheck = db.prepare('PRAGMA integrity_check').get();
     const quickCheck = db.prepare('PRAGMA quick_check').get();
     const fsStats = require('fs').statSync(require('path').dirname(dbPath));
@@ -86,7 +86,7 @@ function backupDatabase(backupDir = path.join(__dirname, '..', 'backups')) {
 
     return {
       success: true,
-      backupPath: backupPath,
+      backupPath,
       error: null
     };
   } catch (error) {
@@ -119,7 +119,7 @@ function repairDatabase() {
     const db = new Database(dbPath);
     db.exec('VACUUM');
     const integrityCheck = db.prepare('PRAGMA integrity_check').get();
-    
+
     db.close();
 
     if (integrityCheck.integrity_check === 'ok') {
@@ -182,7 +182,6 @@ function getDatabaseStats() {
 
     const stats = fs.statSync(dbPath);
     const db = new Database(dbPath);
-    
     const tableCount = db.prepare(`
       SELECT COUNT(*) as count 
       FROM sqlite_master 

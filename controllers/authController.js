@@ -98,7 +98,6 @@ class AuthController {
       const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
       if (!passwordMatch) {
-        console.log('[Login] Password mismatch for user:', username);
         let attemptId = null;
         let attemptCount = 0;
         try {

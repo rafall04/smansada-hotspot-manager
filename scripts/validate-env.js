@@ -258,8 +258,8 @@ function fixEnvFile() {
 
     // Fix format issues
     if (trimmed.includes('=')) {
-      let [key, ...valueParts] = trimmed.split('=');
-      let value = valueParts.join('=');
+      const [key, ...valueParts] = trimmed.split('=');
+      const value = valueParts.join('=');
       
       // Remove spaces around =
       key = key.trim();

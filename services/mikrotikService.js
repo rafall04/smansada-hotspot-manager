@@ -9,11 +9,11 @@ const { sendTelegramMessage, escapeHtml } = require('./notificationService');
  * @returns {string|null} - User-friendly error message or null if not CANTLOGIN
  */
 function formatMikrotikError(error) {
-  if (error.errno === 'CANTLOGIN' || 
-      error.message && error.message.includes('CANTLOGIN') ||
-      error.message && (error.message.toLowerCase().includes('cannot log') || 
+  if (error.errno === 'CANTLOGIN' ||
+      (error.message && error.message.includes('CANTLOGIN')) ||
+      (error.message && (error.message.toLowerCase().includes('cannot log') ||
                        error.message.toLowerCase().includes('invalid password') ||
-                       error.message.toLowerCase().includes('wrong password'))) {
+                       error.message.toLowerCase().includes('wrong password')))) {
     return 'Gagal Login ke Mikrotik. Pastikan **Username dan Password Router API** yang tersimpan di halaman Settings sudah benar.';
   }
   return null;
@@ -28,7 +28,6 @@ class MikrotikService {
     const settings = Settings.get();
 
     if (!settings || Object.keys(settings).length === 0) {
-      console.warn('[MikrotikService] Settings.get() returned empty object - using defaults');
       return {
         host: '192.168.88.1',
         port: 8728,
@@ -99,9 +98,9 @@ class MikrotikService {
       if (cantLoginMessage) {
         return { success: false, message: cantLoginMessage };
       }
-      
+
       let userFriendlyMessage = 'Koneksi ke Router Gagal. Cek Sandi/IP Router.';
-      
+
       if (error.message && error.message.includes('Koneksi ke Router Gagal')) {
         userFriendlyMessage = error.message;
       } else if (error.message && error.message.includes('timeout')) {
@@ -132,7 +131,7 @@ class MikrotikService {
       sendTelegramMessage(errorMessage).catch(err => {
         console.error('[Telegram] Notification error:', err.message);
       });
-      
+
       return {
         success: false,
         message: userFriendlyMessage
@@ -142,15 +141,27 @@ class MikrotikService {
 
   /**
    * Get hotspot user by comment ID
+   * Supports both exact match and format "Nama - NIP:XXXX"
    */
   static async getHotspotUserByComment(commentId) {
+    const conn = this.createConnection();
     try {
-      const conn = this.createConnection();
       await this.connectWithTimeout(conn);
 
-      const users = await conn.write('/ip/hotspot/user/print', ['?comment=' + commentId]);
+      let users = await conn.write('/ip/hotspot/user/print', ['?comment=' + commentId]);
 
-      conn.close();
+      if (!users || users.length === 0) {
+        const allUsers = await conn.write('/ip/hotspot/user/print');
+        if (allUsers && allUsers.length > 0) {
+          users = allUsers.filter(user => {
+            const comment = user.comment || '';
+            return comment === commentId ||
+                   comment.includes(`NIP:${commentId}`) ||
+                   comment.endsWith(`- NIP:${commentId}`) ||
+                   comment.includes(`- NIP:${commentId} -`);
+          });
+        }
+      }
 
       if (!users || users.length === 0) {
         return null;
@@ -163,6 +174,8 @@ class MikrotikService {
         throw new Error(cantLoginMessage);
       }
       throw new Error(`Gagal mengambil user hotspot: ${error.message}`);
+    } finally {
+      conn.close();
     }
   }
 
@@ -341,10 +354,10 @@ class MikrotikService {
       const isFull = maxDevices !== null && currentDevices >= maxDevices;
 
       return {
-        profileName: profileName,
-        maxDevices: maxDevices,
-        currentDevices: currentDevices,
-        isFull: isFull
+        profileName,
+        maxDevices,
+        currentDevices,
+        isFull
       };
     } catch (error) {
       console.error('Error getting device quota:', error);
@@ -510,8 +523,8 @@ class MikrotikService {
       const conn = this.createConnection();
       await this.connectWithTimeout(conn);
 
-      let users = await conn.write('/ip/hotspot/user/print', ['?comment=' + commentId]);
-      
+      const users = await conn.write('/ip/hotspot/user/print', ['?comment=' + commentId]);
+
       if (!users || users.length === 0) {
         const allUsers = await conn.write('/ip/hotspot/user/print');
         if (allUsers && allUsers.length > 0) {

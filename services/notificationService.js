@@ -8,7 +8,9 @@ const https = require('https');
  * @returns {string} - Escaped text
  */
 function escapeHtml(text) {
-  if (!text) return '';
+  if (!text) {
+    return '';
+  }
   return String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

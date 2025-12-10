@@ -105,19 +105,11 @@ async function setupDatabase() {
       `);
       console.log('✓ Settings table created (router config is now in environment variables only)\n');
     } else {
-      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
-      const settingsColumnNames = settingsColumns.map((col) => col.name);
-      let schemaUpdated = false;
-
       // Note: Router config columns (router_ip, router_port, router_user, router_password_encrypted)
       // are no longer used. Router config is now ONLY in environment variables.
       // We don't remove existing columns for backward compatibility, but we don't create new ones.
 
-      if (schemaUpdated) {
-        console.log('✓ Settings schema updated\n');
-      } else {
-        console.log('✓ Settings table already exists (router config is now in environment variables only)\n');
-      }
+      console.log('✓ Settings table already exists (router config is now in environment variables only)\n');
     }
 
     console.log('Setting up audit_logs table...');
