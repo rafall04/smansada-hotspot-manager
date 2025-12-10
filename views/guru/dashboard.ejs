@@ -207,18 +207,18 @@
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
-                    <% if (hotspotUser) { %>
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> <strong>Peringatan:</strong> Link ini mengandung password. Jangan bagikan kepada orang lain.
-                        </div>
+                <div class="modal-body" id="loginHelperModalBody">
+                    <div class="alert alert-warning" id="loginHelperWarning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Peringatan:</strong> Link ini mengandung password. Jangan bagikan kepada orang lain.
+                    </div>
+                    <div class="mb-3" id="loginHelperContent" style="display: none;">
                         <div class="mb-3">
                             <label class="form-label">
                                 <i class="bi bi-link-45deg"></i> Magic Link
                             </label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="magicLinkInput" readonly
-                                       value="<%= hotspotLoginUrl || 'Generating...' %>">
+                                       value="Generating...">
                                 <button class="btn btn-outline-secondary" type="button" id="copyLinkBtn">
                                     <i class="bi bi-clipboard"></i> Copy
                                 </button>
@@ -231,11 +231,10 @@
                             </label>
                             <div id="qrcode" class="d-flex justify-content-center"></div>
                         </div>
-                    <% } else { %>
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> User hotspot tidak ditemukan
-                        </div>
-                    <% } %>
+                    </div>
+                    <div class="alert alert-warning" id="loginHelperError" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i> <span id="loginHelperErrorMessage">User hotspot tidak ditemukan</span>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -513,9 +512,28 @@
                         userInfoContent.innerHTML = userInfoHtml;
                         
                         // Update login helper modal if exists
+                        const loginHelperWarning = document.getElementById('loginHelperWarning');
+                        const loginHelperContent = document.getElementById('loginHelperContent');
+                        const loginHelperError = document.getElementById('loginHelperError');
+                        const loginHelperErrorMessage = document.getElementById('loginHelperErrorMessage');
                         const magicLinkInput = document.getElementById('magicLinkInput');
-                        if (magicLinkInput && data.hotspotLoginUrl) {
-                            magicLinkInput.value = data.hotspotLoginUrl;
+                        
+                        if (data.hotspotUser && data.hotspotLoginUrl) {
+                            if (loginHelperWarning) loginHelperWarning.style.display = 'block';
+                            if (loginHelperContent) loginHelperContent.style.display = 'block';
+                            if (loginHelperError) loginHelperError.style.display = 'none';
+                            if (magicLinkInput) {
+                                magicLinkInput.value = data.hotspotLoginUrl;
+                            }
+                        } else {
+                            if (loginHelperWarning) loginHelperWarning.style.display = 'none';
+                            if (loginHelperContent) loginHelperContent.style.display = 'none';
+                            if (loginHelperError) {
+                                loginHelperError.style.display = 'block';
+                                if (loginHelperErrorMessage) {
+                                    loginHelperErrorMessage.textContent = data.error || 'User hotspot tidak ditemukan';
+                                }
+                            }
                         }
                     } else {
                         userInfoContent.innerHTML = `
@@ -685,11 +703,12 @@
                 if (loginHelperModal) {
                     loginHelperModal.addEventListener('shown.bs.modal', function() {
                         const magicLinkInput = document.getElementById('magicLinkInput');
-                        if (magicLinkInput && magicLinkInput.value && magicLinkInput.value !== 'Generating...') {
-                            const qrcodeDiv = document.getElementById('qrcode');
-                            if (qrcodeDiv) {
-                                qrcodeDiv.innerHTML = '';
-                                if (typeof QRCode !== 'undefined') {
+                        const qrcodeDiv = document.getElementById('qrcode');
+                        
+                        if (magicLinkInput && qrcodeDiv && magicLinkInput.value && magicLinkInput.value !== 'Generating...') {
+                            qrcodeDiv.innerHTML = '';
+                            if (typeof QRCode !== 'undefined') {
+                                try {
                                     new QRCode(qrcodeDiv, {
                                         text: magicLinkInput.value,
                                         width: 256,
@@ -698,8 +717,15 @@
                                         colorLight: '#ffffff',
                                         correctLevel: QRCode.CorrectLevel.H
                                     });
+                                } catch (qrError) {
+                                    console.error('QR Code generation error:', qrError);
+                                    qrcodeDiv.innerHTML = '<div class="alert alert-danger">Gagal membuat QR code</div>';
                                 }
+                            } else {
+                                qrcodeDiv.innerHTML = '<div class="alert alert-warning">QR Code library tidak tersedia</div>';
                             }
+                        } else if (qrcodeDiv) {
+                            qrcodeDiv.innerHTML = '<div class="alert alert-warning">Link belum tersedia</div>';
                         }
                     });
                 }
