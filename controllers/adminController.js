@@ -1588,6 +1588,23 @@ class AdminController {
   static async getDashboardData(req, res) {
     if (res.headersSent) return;
 
+    const timeout = setTimeout(() => {
+      if (!res.headersSent) {
+        console.error('[DashboardData] ⚠️  Request timeout after 30 seconds');
+        return res.status(504).json({
+          success: false,
+          message: 'Request timeout - Mikrotik connection mungkin lambat atau tidak tersedia',
+          data: {
+            connectionTest: { success: false, message: 'Timeout' },
+            systemResources: null,
+            totalActiveConnections: 0,
+            systemHealth: null,
+            usersWithSessions: []
+          }
+        });
+      }
+    }, 30000);
+
     try {
       let connectionTest = { success: false, message: 'Router offline' };
       try {
@@ -1604,26 +1621,38 @@ class AdminController {
 
       if (connectionTest.success) {
         try {
-          systemResources = await MikrotikService.getSystemResources();
-          allActiveSessions = await MikrotikService.getAllActiveHotspotSessions();
+          const [systemResourcesResult, sessionsResult] = await Promise.allSettled([
+            MikrotikService.getSystemResources(),
+            MikrotikService.getAllActiveHotspotSessions()
+          ]);
+
+          systemResources = systemResourcesResult.status === 'fulfilled' ? systemResourcesResult.value : null;
+          allActiveSessions = sessionsResult.status === 'fulfilled' ? sessionsResult.value : [];
 
           const sessionMap = new Map();
           const usernameToCommentMap = new Map();
 
           const uniqueUsernames = [
             ...new Set(allActiveSessions.map((s) => s.user).filter(Boolean))
-          ];
+          ].slice(0, 50);
 
-          for (const username of uniqueUsernames) {
+          const userFetchPromises = uniqueUsernames.map(async (username) => {
             try {
-              const hotspotUser = await MikrotikService.getHotspotUserByUsername(username);
+              const hotspotUser = await Promise.race([
+                MikrotikService.getHotspotUserByUsername(username),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+              ]);
               if (hotspotUser && hotspotUser.comment) {
                 usernameToCommentMap.set(username, hotspotUser.comment);
               }
             } catch (error) {
-              console.error(`[DashboardData] Error fetching user ${username}:`, error);
+              if (error.message !== 'Timeout') {
+                console.error(`[DashboardData] Error fetching user ${username}:`, error.message);
+              }
             }
-          }
+          });
+
+          await Promise.allSettled(userFetchPromises);
 
           for (const session of allActiveSessions) {
             const username = session.user || '';
@@ -1634,6 +1663,10 @@ class AdminController {
             const commentId = usernameToCommentMap.get(username);
             if (!commentId) {
               continue;
+            }
+
+            if (sessionMap.size >= 100) {
+              break;
             }
 
             if (!sessionMap.has(commentId)) {
@@ -1728,8 +1761,12 @@ class AdminController {
         );
       }
 
-      if (res.headersSent) return;
+      if (res.headersSent) {
+        clearTimeout(timeout);
+        return;
+      }
 
+      clearTimeout(timeout);
       return res.json({
         success: true,
         data: {
@@ -1741,9 +1778,12 @@ class AdminController {
         }
       });
     } catch (error) {
+      clearTimeout(timeout);
+      
       if (res.headersSent) return;
 
       console.error('[DashboardData] CRITICAL ERROR:', error);
+      console.error('[DashboardData] Error stack:', error.stack);
 
       return res.status(500).json({
         success: false,

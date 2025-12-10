@@ -330,8 +330,17 @@
 
         // Load Dashboard Data (Mikrotik) asynchronously
         function loadDashboardData() {
-          fetch('/admin/api/dashboard-data')
-            .then(response => response.json())
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 35000);
+
+          fetch('/admin/api/dashboard-data', { signal: controller.signal })
+            .then(response => {
+              clearTimeout(timeoutId);
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+              }
+              return response.json();
+            })
             .then(data => {
               if (data.success && data.data) {
                 updateDashboardUI(data.data);
@@ -340,8 +349,13 @@
               }
             })
             .catch(error => {
+              clearTimeout(timeoutId);
               console.error('Error loading dashboard data:', error);
-              showDashboardError('Gagal memuat data dashboard');
+              if (error.name === 'AbortError') {
+                showDashboardError('Request timeout - Koneksi ke router mungkin lambat');
+              } else {
+                showDashboardError('Gagal memuat data dashboard: ' + error.message);
+              }
             });
         }
 
