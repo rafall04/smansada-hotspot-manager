@@ -92,40 +92,9 @@ app.use((req, res, next) => {
     error: req.flash('error'),
     warning: req.flash('warning')
   };
-  try {
-    const settings = Settings.get();
-    
-    if (!settings || Object.keys(settings).length === 0) {
-      console.warn('[Middleware] Settings.get() returned empty object - using defaults');
-      res.locals.settings = {
-        router_ip: '192.168.88.1',
-        router_port: 8728,
-        router_user: 'admin',
-        router_password_encrypted: '',
-        hotspot_dns_name: '',
-        telegram_bot_token: '',
-        telegram_chat_id: '',
-        school_name: 'SMAN 1 CONTOH',
-        _io_error: true // Flag to indicate I/O error
-      };
-    } else {
-      res.locals.settings = settings;
-    }
-  } catch (error) {
-    console.error('[Middleware] Failed to load settings (unexpected):', error.message);
-    console.error('[Middleware] Error code:', error.code);
-    res.locals.settings = {
-      router_ip: '192.168.88.1',
-      router_port: 8728,
-      router_user: 'admin',
-      router_password_encrypted: '',
-      hotspot_dns_name: '',
-      telegram_bot_token: '',
-      telegram_chat_id: '',
-      school_name: 'SMAN 1 CONTOH',
-      _io_error: true // Flag to indicate I/O error
-    };
-  }
+  
+  const settings = Settings.get();
+  res.locals.settings = settings;
   next();
 });
 
