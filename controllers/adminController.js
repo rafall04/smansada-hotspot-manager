@@ -1233,15 +1233,21 @@ class AdminController {
         }
       }
 
+      const defaultProfileFromForm = req.body.default_profile ? req.body.default_profile.trim() : null;
+      const settings = Settings.get();
+      const defaultProfileFromSettings = settings.default_hotspot_profile || null;
+      const finalDefaultProfile = defaultProfileFromForm || defaultProfileFromSettings || 'default';
+
       for (const row of results) {
         processedCount++;
         
-        let nip, nama_guru, customPassword;
+        let nip, nama_guru, customPassword, profile;
         
         if (fileExt === '.json') {
           const identifier = row['nip'] || row['identifier'] || row['username'] || row['user'] || '';
           nama_guru = row['nama'] || row['nama_guru'] || row['name'] || '';
           customPassword = row['password'] || null;
+          profile = row['profile'] || row['profil'] || null;
           
           if (!identifier || !nama_guru) {
             errors.push(`Row ${processedCount}: Missing required fields (nip/identifier/username, nama/name)`);
@@ -1255,11 +1261,13 @@ class AdminController {
           
           nip = cleanIdentifier;
           nama_guru = String(nama_guru).trim();
+          profile = profile ? String(profile).trim() : null;
         } else if (isNewFormat) {
           const no = row['no'] || row['no.'] || '';
           const nama = row['nama'] || row['name'] || '';
           const nipUserPassword = row['nip/user/password'] || row['nip'] || row['user'] || row['password'] || 
                                   row['nip/user'] || row['user/password'] || '';
+          profile = row['profile'] || row['profil'] || null;
           
           if (!nama || !nipUserPassword) {
             errors.push(`Row ${processedCount}: Missing required fields (NAMA, NIP/USER/PASSWORD)`);
@@ -1274,9 +1282,11 @@ class AdminController {
           }
           
           nip = identifier;
+          profile = profile ? String(profile).trim() : null;
         } else {
           nip = row['nip'] || '';
           nama_guru = row['nama_guru'] || row['nama'] || '';
+          profile = row['profile'] || row['profil'] || null;
           
           if (!nip || !nama_guru) {
             errors.push(`Row ${processedCount}: Missing required fields (nip, nama_guru)`);
@@ -1288,11 +1298,13 @@ class AdminController {
             nip = nip.substring(1);
           }
           nama_guru = String(nama_guru).trim();
+          profile = profile ? String(profile).trim() : null;
         }
 
         const username = nip.trim();
         const password = customPassword ? customPassword.trim() : nip.trim();
         const mikrotik_comment_id = nama_guru.trim();
+        const hotspotProfile = profile || finalDefaultProfile;
 
         if (!username || !mikrotik_comment_id) {
           errors.push(`Row ${processedCount}: Invalid data (username or nama is empty)`);
@@ -1321,7 +1333,8 @@ class AdminController {
           password_encrypted_viewable: passwordEncrypted,
           role: 'guru',
           mikrotik_comment_id,
-          must_change_password: 1
+          must_change_password: 1,
+          hotspot_profile: hotspotProfile
         });
       }
 
@@ -1342,7 +1355,7 @@ class AdminController {
               user.username,
               user.password_plain,
               user.mikrotik_comment_id,
-              'default'
+              user.hotspot_profile || finalDefaultProfile
             );
 
           } catch (mtError) {

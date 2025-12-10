@@ -1,7 +1,8 @@
 [
   {
     "nama": "Mariyati M.Pd",
-    "nip": "197507062006042003"
+    "nip": "197507062006042003",
+    "profile": "default"
   },
   {
     "nama": "Suprapti S.Pd",
@@ -9,10 +10,7 @@
   },
   {
     "nama": "Wahyu Kurniawan S.Pd",
-    "nip": "085832102815"
-  },
-  {
-    "nama": "Ardia Puti Paramitha S.Pd",
-    "nip": "085233558837"
+    "nip": "085832102815",
+    "profile": "unlimited"
   }
 ]

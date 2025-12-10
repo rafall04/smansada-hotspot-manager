@@ -42,6 +42,7 @@ class Settings {
         const columns = db.prepare('PRAGMA table_info(settings)').all();
         const columnNames = columns.map((col) => col.name);
         const hasSchoolName = columnNames.includes('school_name');
+        const hasDefaultProfile = columnNames.includes('default_hotspot_profile');
 
         const routerConfigData = routerConfigStorage.getRouterConfig();
         const hasTelegram = columnNames.includes('telegram_bot_token') && columnNames.includes('telegram_chat_id');
@@ -52,7 +53,8 @@ class Settings {
             hotspot_dns_name: '',
             telegram_bot_token: '',
             telegram_chat_id: '',
-            school_name: 'SMAN 1 CONTOH'
+            school_name: 'SMAN 1 CONTOH',
+            default_hotspot_profile: ''
           };
         }
 
@@ -61,7 +63,8 @@ class Settings {
           hotspot_dns_name: result.hotspot_dns_name || '',
           telegram_bot_token: hasTelegram ? (result.telegram_bot_token || '') : '',
           telegram_chat_id: hasTelegram ? (result.telegram_chat_id || '') : '',
-          school_name: hasSchoolName ? (result.school_name || 'SMAN 1 CONTOH') : 'SMAN 1 CONTOH'
+          school_name: hasSchoolName ? (result.school_name || 'SMAN 1 CONTOH') : 'SMAN 1 CONTOH',
+          default_hotspot_profile: hasDefaultProfile ? (result.default_hotspot_profile || '') : ''
         };
       } catch (error) {
         lastError = error;
@@ -113,6 +116,7 @@ class Settings {
       telegram_bot_token: '',
       telegram_chat_id: '',
       school_name: 'SMAN 1 CONTOH',
+      default_hotspot_profile: '',
       _io_error: true
     };
   }
@@ -163,6 +167,11 @@ class Settings {
           values.push(data.school_name || 'SMAN 1 CONTOH');
         } else {
           console.warn('[Settings.update] Column school_name does not exist in settings table. Run setup_db.js to add it.');
+        }
+
+        if (columnNames.includes('default_hotspot_profile')) {
+          fields.push('default_hotspot_profile = ?');
+          values.push(data.default_hotspot_profile || '');
         }
 
         if (existing) {

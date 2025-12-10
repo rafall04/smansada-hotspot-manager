@@ -350,6 +350,7 @@
                       <small>
                         <strong>Nama</strong> → Comment di Mikrotik (Comment ID)<br>
                         <strong>NIP/Nomor HP</strong> → Username & Password (Web & Hotspot Mikrotik)<br>
+                        <strong>Profile</strong> → Opsional, bisa diisi per user atau gunakan default di bawah<br>
                         <strong>File yang didukung:</strong> .json, .xlsx, .xls, .csv
                       </small>
                       <br><br>
@@ -359,11 +360,24 @@
                       <a href="/downloads/Template.csv" class="alert-link">📋 Template CSV (nip, nama_guru)</a>
                       <br><br>
                       <small class="text-muted">
-                        <strong>Format JSON:</strong> <code>[{"nama": "Nama Guru", "nip": "NIP atau Nomor HP"}]</code><br>
-                        <strong>Catatan:</strong> NIP bisa diganti dengan Nomor HP jika NIP tidak diketahui
+                        <strong>Format JSON:</strong> <code>[{"nama": "Nama Guru", "nip": "NIP atau Nomor HP", "profile": "default"}]</code><br>
+                        <strong>Catatan:</strong> NIP bisa diganti dengan Nomor HP jika NIP tidak diketahui. Field "profile" opsional.
                       </small>
                     </div>
-                    <input type="file" class="form-control" name="userFile" accept=".json,.csv,.xlsx,.xls" required>
+                    <div class="mb-3">
+                      <label for="default_profile" class="form-label">Default Profile Hotspot <span class="text-muted">(Opsional)</span></label>
+                      <div class="input-group">
+                        <select class="form-select" id="default_profile" name="default_profile">
+                          <option value="">-- Gunakan Default dari Settings --</option>
+                        </select>
+                        <button type="button" class="btn btn-primary" id="loadProfilesImportBtn">Muat Profile</button>
+                      </div>
+                      <div class="form-text">Profile ini akan digunakan jika tidak ada field "profile" di file import</div>
+                    </div>
+                    <div class="mb-3">
+                      <label for="userFile" class="form-label">File Import <span class="text-danger">*</span></label>
+                      <input type="file" class="form-control" id="userFile" name="userFile" accept=".json,.csv,.xlsx,.xls" required>
+                    </div>
                                     </div>
                   <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
@@ -419,6 +433,11 @@
 
                   if (loadProfilesBtn) {
                     loadProfilesBtn.addEventListener('click', this.loadProfiles.bind(this));
+                  }
+
+                  const loadProfilesImportBtn = document.getElementById('loadProfilesImportBtn');
+                  if (loadProfilesImportBtn) {
+                    loadProfilesImportBtn.addEventListener('click', this.loadProfilesForImport.bind(this));
                   }
 
                   if (togglePasswordBtn) {
@@ -704,6 +723,47 @@
                       alert('Error: ' + error.message);
                     }
                     loadBtn.innerHTML = 'Muat';
+                  } finally {
+                    loadBtn.disabled = false;
+                  }
+                },
+
+                async loadProfilesForImport() {
+                  const profileSelect = document.getElementById('default_profile');
+                  const loadBtn = document.getElementById('loadProfilesImportBtn');
+                  if (!profileSelect || !loadBtn) return;
+
+                  loadBtn.disabled = true;
+                  loadBtn.innerHTML = 'Memuat...';
+
+                  try {
+                    const response = await fetch('/admin/users/profiles');
+                    const data = await response.json();
+
+                    if (data.success && data.profiles) {
+                      profileSelect.innerHTML = '<option value="">-- Gunakan Default dari Settings --</option>';
+                      data.profiles.forEach((profile) => {
+                        const option = document.createElement('option');
+                        option.value = profile.name || profile;
+                        option.textContent = profile.name || profile;
+                        profileSelect.appendChild(option);
+                      });
+                      loadBtn.innerHTML = 'Dimuat';
+                    } else {
+                      if (typeof displayFeedbackModal === 'function') {
+                        displayFeedbackModal('error', 'Gagal Memuat', 'Gagal memuat profile');
+                      } else {
+                        alert('Gagal memuat profile');
+                      }
+                      loadBtn.innerHTML = 'Muat Profile';
+                    }
+                  } catch (error) {
+                    if (typeof displayFeedbackModal === 'function') {
+                      displayFeedbackModal('error', 'Kesalahan', 'Error: ' + error.message);
+                    } else {
+                      alert('Error: ' + error.message);
+                    }
+                    loadBtn.innerHTML = 'Muat Profile';
                   } finally {
                     loadBtn.disabled = false;
                   }

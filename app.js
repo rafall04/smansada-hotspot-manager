@@ -46,6 +46,12 @@ function verifyDatabaseSchema() {
       schemaUpdated = true;
     }
 
+    if (!columnNames.includes('default_hotspot_profile')) {
+      console.log('[Schema Check] Adding default_hotspot_profile column...');
+      db.exec('ALTER TABLE settings ADD COLUMN default_hotspot_profile TEXT');
+      schemaUpdated = true;
+    }
+
     if (schemaUpdated) {
       console.log('[Schema Check] ✓ Settings schema updated successfully');
     } else {
