@@ -17,7 +17,7 @@ Aplikasi ini menggunakan struktur **MVC** dengan:
 ### Admin Panel
 
 - ✅ Dashboard dengan status koneksi Mikrotik
-- ✅ Router Settings (simpan config di database)
+- ✅ Router Configuration (via environment variables)
 - ✅ User Management (CRUD akun guru)
 - ✅ Total guru counter
 
@@ -72,15 +72,22 @@ Setelah menjalankan `npm run setup-db`:
 
 ## 🔧 Konfigurasi Router
 
-1. Login sebagai admin
-2. Buka menu **Settings**
-3. Isi konfigurasi router Mikrotik:
-   - Router IP Address
-   - Router Port (default: 8728)
-   - Router Username
-   - Router Password
+Router configuration disimpan di **environment variables** (`.env` file) untuk keandalan maksimal.
 
-**Catatan**: Konfigurasi disimpan di database, bukan di `.env`!
+1. Generate encrypted password:
+```bash
+node scripts/setup-router-env.js your_router_password
+```
+
+2. Tambahkan ke file `.env`:
+```env
+ROUTER_IP=192.168.88.1
+ROUTER_PORT=8728
+ROUTER_USER=admin
+ROUTER_PASSWORD_ENCRYPTED=encrypted_hex_string_here
+```
+
+**Catatan**: Router config **HARUS** di-set di `.env` file, bukan via web UI!
 
 ## 📁 Struktur Database
 
@@ -96,10 +103,12 @@ Setelah menjalankan `npm run setup-db`:
 ### Tabel `settings`
 
 - `id` - Primary key (always 1)
-- `router_ip` - IP address router
-- `router_port` - Port API (default: 8728)
-- `router_user` - Username API
-- `router_password` - Password API
+- `hotspot_dns_name` - DNS name untuk hotspot
+- `telegram_bot_token` - Token bot Telegram (opsional)
+- `telegram_chat_id` - Chat ID Telegram (opsional)
+- `school_name` - Nama sekolah
+
+**Catatan**: Router config (IP, port, username, password) sekarang disimpan di **environment variables** (`.env`), bukan di database.
 
 ## 🔐 Security Features
 
@@ -122,8 +131,8 @@ Setelah menjalankan `npm run setup-db`:
 
 ### Admin Workflow
 
-1. Login sebagai admin
-2. Setup router settings (jika belum)
+1. Setup router config di `.env` file (lihat bagian Konfigurasi Router)
+2. Login sebagai admin
 3. Tambah user guru dengan Comment ID
 4. Monitor dashboard untuk status koneksi
 
@@ -136,18 +145,19 @@ Setelah menjalankan `npm run setup-db`:
 
 ## ⚠️ Catatan Penting
 
-1. **Router Settings**: Harus dikonfigurasi di admin panel sebelum menggunakan fitur Mikrotik
+1. **Router Configuration**: Harus dikonfigurasi di `.env` file sebelum menggunakan fitur Mikrotik (lihat bagian Konfigurasi Router)
 2. **Mikrotik Comment ID**: Harus sama persis dengan Comment di user hotspot Mikrotik
-3. **Error Handling**: Jika koneksi Mikrotik gagal, admin panel tetap bisa dibuka untuk fix settings
+3. **Error Handling**: Jika koneksi Mikrotik gagal, periksa konfigurasi di `.env` file
 4. **Password Admin**: Ganti password default setelah setup!
 
 ## 🐛 Troubleshooting
 
 ### Error: "Gagal terhubung ke Mikrotik"
 
-- Periksa Router Settings di admin panel
+- Periksa konfigurasi router di `.env` file (ROUTER_IP, ROUTER_PORT, ROUTER_USER, ROUTER_PASSWORD_ENCRYPTED)
 - Pastikan IP, port, username, dan password benar
 - Pastikan API service aktif di Mikrotik
+- Restart aplikasi setelah mengubah `.env` file
 
 ### Error: "User hotspot tidak ditemukan"
 
