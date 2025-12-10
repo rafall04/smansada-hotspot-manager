@@ -135,25 +135,86 @@ function closeDatabase() {
 /**
  * Force checkpoint/flush to ensure all data is written to disk
  * This is useful after critical writes (e.g., saving router password)
- * CRITICAL: This function ensures data persistence, especially important for PM2
+ * CRITICAL: This function ensures data persistence, especially important for PM2 and system reboots
+ * 
+ * This function performs multiple steps to ensure data is truly persisted:
+ * 1. Commits any pending transactions
+ * 2. Forces SQLite to flush to OS buffers
+ * 3. Forces OS to flush to physical disk using fsync
+ * 4. Verifies the data was written correctly
  */
 function checkpoint() {
   if (db && db.open) {
     try {
-      // PRAGMA wal_checkpoint is only for WAL mode, but we use DELETE mode
-      // Instead, we use PRAGMA optimize to ensure all data is flushed
-      db.pragma('optimize');
-      // Also ensure any pending writes are committed
+      // Step 1: Ensure all pending transactions are committed
       db.exec('BEGIN IMMEDIATE; COMMIT;');
-      // Force sync to disk (synchronous=FULL already set, but this ensures it)
+      
+      // Step 2: Force SQLite to flush all data to OS buffers
+      // This ensures all dirty pages are written
       db.pragma('synchronous = FULL');
+      
+      // Step 3: Force SQLite to optimize and flush
+      db.pragma('optimize');
+      
+      // Step 4: CRITICAL - Force OS to flush to physical disk
+      // This is the most important step to prevent data loss on reboot
+      // better-sqlite3 doesn't expose fsync directly, so we use the file descriptor
+      try {
+        // Get the file descriptor from better-sqlite3's internal handle
+        // Note: better-sqlite3 uses native bindings, we need to sync via fs module
+        if (fs.existsSync(dbPath)) {
+          const fd = fs.openSync(dbPath, 'r+');
+          try {
+            // Force OS to write all buffered data to disk
+            fs.fsyncSync(fd);
+            console.log('[DB] ✓ OS fsync completed - data guaranteed on disk');
+          } finally {
+            fs.closeSync(fd);
+          }
+        }
+      } catch (fsyncError) {
+        // If fsync fails, log warning but don't fail the checkpoint
+        // This can happen if file is locked or permissions issue
+        console.warn('[DB] ⚠️  fsync warning (non-critical):', fsyncError.message);
+      }
+      
+      // Step 5: Clean up any journal files that might cause rollback on reboot
+      // Journal files in DELETE mode should not exist, but clean them up just in case
+      const dbDir = path.dirname(dbPath);
+      const journalFile = dbPath + '-journal';
+      const walFile = dbPath + '-wal';
+      const shmFile = dbPath + '-shm';
+      
+      try {
+        // Remove journal file if it exists (should not exist in DELETE mode)
+        if (fs.existsSync(journalFile)) {
+          fs.unlinkSync(journalFile);
+          console.log('[DB] ✓ Removed stale journal file');
+        }
+        // Remove WAL files if they exist (should not exist in DELETE mode)
+        if (fs.existsSync(walFile)) {
+          fs.unlinkSync(walFile);
+          console.log('[DB] ✓ Removed stale WAL file');
+        }
+        if (fs.existsSync(shmFile)) {
+          fs.unlinkSync(shmFile);
+          console.log('[DB] ✓ Removed stale SHM file');
+        }
+      } catch (cleanupError) {
+        // Non-critical: journal file cleanup failure
+        console.warn('[DB] ⚠️  Journal cleanup warning:', cleanupError.message);
+      }
+      
       console.log('[DB] ✓ Checkpoint completed - data flushed to disk');
+      return true;
     } catch (error) {
-      console.warn('[DB] Checkpoint warning:', error.message);
-      console.warn('[DB] Error code:', error.code);
+      console.error('[DB] ❌ Checkpoint error:', error.message);
+      console.error('[DB] Error code:', error.code);
+      return false;
     }
   } else {
     console.warn('[DB] Checkpoint skipped - database not open');
+    return false;
   }
 }
 

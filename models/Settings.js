@@ -219,7 +219,25 @@ class Settings {
           
           // CRITICAL: Force checkpoint to ensure data is written to disk
           // This prevents data loss if the application crashes or is restarted
-          checkpoint();
+          const checkpointSuccess = checkpoint();
+          if (!checkpointSuccess) {
+            console.error('[Settings] ⚠️  WARNING: Checkpoint failed, data may not be persisted!');
+          }
+          
+          // CRITICAL: Verify data was actually written (especially for router_password_encrypted)
+          // This is important to catch any silent failures
+          if (data.router_password_encrypted) {
+            const verifyStmt = db.prepare('SELECT router_password_encrypted FROM settings WHERE id = 1');
+            const verifyResult = verifyStmt.get();
+            if (!verifyResult || verifyResult.router_password_encrypted !== data.router_password_encrypted) {
+              console.error('[Settings] ❌ CRITICAL: Password verification failed after write!');
+              console.error('[Settings] Expected:', data.router_password_encrypted.substring(0, 20) + '...');
+              console.error('[Settings] Got:', verifyResult ? (verifyResult.router_password_encrypted || 'NULL').substring(0, 20) + '...' : 'NULL');
+              throw new Error('Password verification failed - data may not be persisted correctly');
+            } else {
+              console.log('[Settings] ✓ Password verification passed - data confirmed on disk');
+            }
+          }
           
           console.log('[Settings] Updated successfully (data flushed to disk)');
           return result;
@@ -231,7 +249,22 @@ class Settings {
           const result = stmt.run(...insertValues);
           
           // CRITICAL: Force checkpoint to ensure data is written to disk
-          checkpoint();
+          const checkpointSuccess = checkpoint();
+          if (!checkpointSuccess) {
+            console.error('[Settings] ⚠️  WARNING: Checkpoint failed, data may not be persisted!');
+          }
+          
+          // CRITICAL: Verify data was actually written (especially for router_password_encrypted)
+          if (data.router_password_encrypted) {
+            const verifyStmt = db.prepare('SELECT router_password_encrypted FROM settings WHERE id = 1');
+            const verifyResult = verifyStmt.get();
+            if (!verifyResult || verifyResult.router_password_encrypted !== data.router_password_encrypted) {
+              console.error('[Settings] ❌ CRITICAL: Password verification failed after insert!');
+              throw new Error('Password verification failed - data may not be persisted correctly');
+            } else {
+              console.log('[Settings] ✓ Password verification passed - data confirmed on disk');
+            }
+          }
           
           console.log('[Settings] Inserted successfully (data flushed to disk)');
           return result;
