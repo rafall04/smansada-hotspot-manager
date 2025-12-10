@@ -1120,7 +1120,7 @@ class AdminController {
                          (req.headers['x-requested-with'] === 'XMLHttpRequest');
 
     try {
-      const { admin_password } = req.body;
+      const admin_password = req.body.admin_password;
 
       if (!admin_password) {
         if (isJsonRequest) {

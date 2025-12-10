@@ -55,19 +55,20 @@ router.post(
   isAdmin,
   AdminController.revealPassword
 );
-router.post(
-  '/admin/users',
-  isAuthenticated,
-  isAdmin,
-  validators.validateAdminUserCreate,
-  AdminController.createUser
-);
+router.post('/admin/users/delete-all-guru', isAuthenticated, isAdmin, AdminController.deleteAllGuru);
 router.post(
   '/admin/users/import',
   isAuthenticated,
   isAdmin,
   require('../middlewares/multerUpload').single('userFile'),
   AdminController.importUsers
+);
+router.post(
+  '/admin/users',
+  isAuthenticated,
+  isAdmin,
+  validators.validateAdminUserCreate,
+  AdminController.createUser
 );
 router.post(
   '/admin/users/:id',
@@ -77,7 +78,6 @@ router.post(
   AdminController.updateUser
 );
 router.post('/admin/users/:id/delete', isAuthenticated, isAdmin, AdminController.deleteUser);
-router.post('/admin/users/delete-all-guru', isAuthenticated, isAdmin, AdminController.deleteAllGuru);
 
 router.get('/admin/admins', isAuthenticated, isAdmin, AdminController.manageAdminsPage);
 router.post('/admin/admins', isAuthenticated, isAdmin, AdminController.createAdminUser);
