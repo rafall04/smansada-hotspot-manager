@@ -266,8 +266,6 @@ class AdminController {
       
       try {
         const updateResult = Settings.update(updateData);
-        console.log('[Settings] Router and notification settings updated successfully');
-        console.log('[Settings] Update result:', updateResult.changes, 'rows affected');
         
         try {
           const verifySettings = Settings.get();
@@ -1892,12 +1890,10 @@ class AdminController {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const backupPath = path.join(backupDir, `hotspot_before_restore_${timestamp}.db`);
         fs.copyFileSync(dbPath, backupPath);
-        console.log('[RestoreDatabase] Backup created before restore:', backupPath);
       }
 
       try {
         closeDatabase();
-        console.log('[RestoreDatabase] Database connection closed');
       } catch (closeError) {
         console.warn('[RestoreDatabase] Error closing database (may not be open):', closeError.message);
       }
@@ -1906,7 +1902,6 @@ class AdminController {
 
       try {
         fs.copyFileSync(uploadedFile.path, dbPath);
-        console.log('[RestoreDatabase] Database file replaced successfully');
       } catch (copyError) {
         fs.unlinkSync(uploadedFile.path);
         req.flash('error', 'Gagal mengganti database: ' + copyError.message + '. Pastikan aplikasi tidak sedang mengakses database.');

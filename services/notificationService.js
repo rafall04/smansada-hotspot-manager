@@ -50,8 +50,6 @@ async function sendTelegramMessage(message, botToken = null, chatId = null) {
       };
     }
 
-    console.log(`[Telegram] Sending HTML message to ${chatId.substring(0, 5)}...`);
-
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     
     const payload = {
@@ -88,7 +86,6 @@ async function sendTelegramMessage(message, botToken = null, chatId = null) {
           try {
             const jsonResponse = JSON.parse(responseData);
             if (jsonResponse.ok) {
-              console.log('[Telegram] Message sent successfully');
               resolve({
                 success: true,
                 message: 'Message sent successfully'

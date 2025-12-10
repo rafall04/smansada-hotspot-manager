@@ -43,12 +43,6 @@ function getDatabase() {
   }
 
   try {
-    console.log('[DB] Initializing shared database connection...');
-    console.log('[DB] Project root:', projectRoot);
-    console.log('[DB] Database path:', dbPath);
-    console.log('[DB] Current working directory:', process.cwd());
-    console.log('[DB] __dirname:', __dirname);
-    
     const dbDir = path.dirname(dbPath);
     try {
       fs.accessSync(dbDir, fs.constants.W_OK);
@@ -81,22 +75,11 @@ function getDatabase() {
     // synchronous=FULL: Forces SQLite to wait for OS to confirm data is written to disk
     // This prevents data loss on system crashes or unexpected shutdowns
     db.pragma('synchronous = FULL');
-    console.log('[DB] ✓ Set synchronous=FULL (maximum durability)');
 
-    // CRITICAL: Set journal mode to DELETE to avoid WAL file permission issues
-    // WAL mode creates additional files which can cause permission errors and lock contention
     const journalMode = db.pragma('journal_mode');
     if (journalMode && journalMode.journal_mode && journalMode.journal_mode.toUpperCase() === 'WAL') {
-      console.log('[DB] Switching from WAL to DELETE journal mode');
       db.pragma('journal_mode = DELETE');
     }
-    console.log('[DB] ✓ Journal mode: DELETE');
-
-    const syncCheck = db.pragma('synchronous', { simple: true });
-    const journalCheck = db.pragma('journal_mode', { simple: true });
-    console.log('[DB] ✓ Database initialized with settings:');
-    console.log(`[DB]   - synchronous: ${syncCheck}`);
-    console.log(`[DB]   - journal_mode: ${journalCheck}`);
 
     // Handle graceful shutdown
     process.on('SIGINT', closeDatabase);
@@ -153,7 +136,6 @@ function checkpoint() {
           const fd = fs.openSync(dbPath, 'r+');
           try {
             fs.fsyncSync(fd);
-            console.log('[DB] ✓ OS fsync completed - data guaranteed on disk');
           } finally {
             fs.closeSync(fd);
           }
@@ -171,15 +153,12 @@ function checkpoint() {
       try {
         if (fs.existsSync(journalFile)) {
           fs.unlinkSync(journalFile);
-          console.log('[DB] ✓ Removed stale journal file');
         }
         if (fs.existsSync(walFile)) {
           fs.unlinkSync(walFile);
-          console.log('[DB] ✓ Removed stale WAL file');
         }
         if (fs.existsSync(shmFile)) {
           fs.unlinkSync(shmFile);
-          console.log('[DB] ✓ Removed stale SHM file');
         }
       } catch (cleanupError) {
         // Non-critical: journal file cleanup failure

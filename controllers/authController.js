@@ -144,13 +144,6 @@ class AuthController {
             lockoutMessage: null
           });
         }
-        console.log('[Login] Session saved successfully for user:', user.username);
-        console.log('[Login] Session ID:', req.sessionID);
-        console.log('[Login] Session data:', {
-          userId: req.session.userId,
-          username: req.session.username,
-          role: req.session.role
-        });
       });
 
       logActivity(req, 'LOGIN', `User: ${user.username}`);

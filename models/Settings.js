@@ -195,10 +195,8 @@ class Settings {
               console.error('[Settings] ⚠️  WARNING: Checkpoint failed, data may not be persisted!');
             }
             
-            console.log('[Settings] Other settings updated successfully (data flushed to disk)');
             return result;
           } else {
-            console.log('[Settings] Only router config updated (JSON file), no database changes');
             return { changes: 0 };
           }
         } else {
@@ -214,10 +212,8 @@ class Settings {
               console.error('[Settings] ⚠️  WARNING: Checkpoint failed, data may not be persisted!');
             }
             
-            console.log('[Settings] Settings inserted successfully (data flushed to disk)');
             return result;
           } else {
-            console.log('[Settings] Only router config saved (JSON file), no database insert needed');
             return { changes: 0 };
           }
         }
@@ -242,7 +238,6 @@ class Settings {
           
           if (attempt < retries) {
             const delay = Math.min(100 * Math.pow(2, attempt), 1000);
-            console.log(`[Settings.update] Retrying in ${delay}ms...`);
             const start = Date.now();
             while (Date.now() - start < delay) {
               // Busy wait
