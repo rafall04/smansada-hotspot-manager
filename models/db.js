@@ -161,11 +161,9 @@ function checkpoint() {
           fs.unlinkSync(shmFile);
         }
       } catch (cleanupError) {
-        // Non-critical: journal file cleanup failure
         console.warn('[DB] ⚠️  Journal cleanup warning:', cleanupError.message);
       }
       
-      console.log('[DB] ✓ Checkpoint completed - data flushed to disk');
       return true;
     } catch (error) {
       console.error('[DB] ❌ Checkpoint error:', error.message);
