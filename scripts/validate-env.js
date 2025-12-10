@@ -72,12 +72,10 @@ function validateEnvFile() {
     const lineNum = index + 1;
     const trimmed = line.trim();
 
-    // Skip empty lines and comments
     if (!trimmed || trimmed.startsWith('#')) {
       return;
     }
 
-    // Check format: should be KEY=VALUE (no spaces around =)
     if (!trimmed.includes('=')) {
       issues.push({
         line: lineNum,
@@ -88,11 +86,10 @@ function validateEnvFile() {
     }
 
     const [key, ...valueParts] = trimmed.split('=');
-    const value = valueParts.join('='); // Handle values with = in them
+    const value = valueParts.join('=');
     const keyTrimmed = key.trim();
     const valueTrimmed = value.trim();
 
-    // Check for spaces around =
     if (key !== keyTrimmed || (valueParts.length > 0 && value !== valueTrimmed && !value.startsWith('"') && !value.startsWith("'"))) {
       issues.push({
         line: lineNum,
@@ -101,10 +98,7 @@ function validateEnvFile() {
       });
     }
 
-    // Check for quotes (should not have quotes unless value contains spaces)
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      // Quotes are OK if value contains spaces, but dotenv handles them
-      // We'll just warn if it's simple value
       if (!value.includes(' ') && value.length > 2) {
         issues.push({
           line: lineNum,
@@ -115,14 +109,12 @@ function validateEnvFile() {
       }
     }
 
-    envVars[keyTrimmed] = valueTrimmed.replace(/^["']|["']$/g, ''); // Remove quotes for checking
+    envVars[keyTrimmed] = valueTrimmed.replace(/^["']|["']$/g, '');
 
-    // Check router config (new format)
     if (ROUTER_VARS.includes(keyTrimmed)) {
       hasRouterConfig = true;
     }
 
-    // Check legacy router config
     if (['MIKROTIK_HOST', 'MIKROTIK_PORT', 'MIKROTIK_USER', 'MIKROTIK_PASSWORD'].includes(keyTrimmed)) {
       hasRouterConfig = true;
     }
@@ -139,7 +131,6 @@ function validateEnvFile() {
     }
   });
 
-  // Check for legacy format (MIKROTIK_*)
   const legacyVars = ['MIKROTIK_HOST', 'MIKROTIK_PORT', 'MIKROTIK_USER', 'MIKROTIK_PASSWORD'];
   const legacyVarsSet = legacyVars.filter(v => envVars[v]);
   if (legacyVarsSet.length > 0) {
@@ -151,7 +142,6 @@ function validateEnvFile() {
     });
   }
 
-  // Check router config completeness
   const routerVarsSet = ROUTER_VARS.filter(v => envVars[v]);
   if (hasRouterConfig && routerVarsSet.length > 0 && routerVarsSet.length < ROUTER_VARS.length) {
     const missing = ROUTER_VARS.filter(v => !envVars[v]);
@@ -197,7 +187,6 @@ function validateEnvFile() {
     }
   }
 
-  // Report results
   if (issues.length === 0) {
     console.log('✅ .env file format is valid!');
     console.log('');
@@ -276,7 +265,6 @@ function fixEnvFile() {
       key = key.trim();
       value = value.trim();
 
-      // Migrate legacy format to new format
       if (legacyMapping[key]) {
         const newKey = legacyMapping[key];
         console.log(`Line ${index + 1}: Migrating legacy format`);
@@ -287,7 +275,6 @@ function fixEnvFile() {
         changed = true;
       }
 
-      // Remove unnecessary quotes (dotenv handles them)
       if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
         if (!value.includes(' ') || value.length <= 2) {
           value = value.replace(/^["']|["']$/g, '');

@@ -143,7 +143,6 @@ class Settings {
         const columnNames = columns.map((col) => col.name);
 
         // Router configuration is now ONLY stored in environment variables
-        // Do not save router config to database
         if (data.router_ip || data.router_port || data.router_user || data.router_password || data.router_password_encrypted) {
           console.warn('[Settings] ⚠️  Router configuration cannot be saved via Settings.update()');
           console.warn('[Settings] 💡 Router config must be set in .env file (ROUTER_IP, ROUTER_USER, ROUTER_PASSWORD_ENCRYPTED)');

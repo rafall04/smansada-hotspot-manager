@@ -290,8 +290,6 @@ async function setupDatabase() {
       const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
       const settingsColumnNames = settingsColumns.map((col) => col.name);
       
-      // Router config is now ONLY in environment variables, not in database
-      // Only insert non-router settings
       db.prepare(
         `
         INSERT INTO settings (id, school_name)
@@ -316,5 +314,4 @@ async function setupDatabase() {
   }
 }
 
-// Run setup
 setupDatabase();

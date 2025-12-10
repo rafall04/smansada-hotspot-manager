@@ -245,7 +245,6 @@ class AdminController {
       if (res.headersSent) return;
 
       // Router configuration is now ONLY stored in environment variables
-      // Check if user tried to update router config via form
       const { router_ip, router_port, router_user, router_password } = req.body;
       if (router_ip || router_port || router_user || router_password) {
         console.warn('[AdminController] ⚠️  User attempted to update router config via web UI');
@@ -258,7 +257,6 @@ class AdminController {
           ? req.body.school_name.trim()
           : 'SMAN 1 CONTOH';
 
-      // Only update non-router settings
       const updateData = {
         hotspot_dns_name: req.body.hotspot_dns_name || '',
         telegram_bot_token: req.body.telegram_bot_token || '',
@@ -1776,7 +1774,6 @@ class AdminController {
         return res.redirect('/admin/settings');
       }
 
-      // Create backup before download
       const backupDir = path.join(__dirname, '..', 'backups');
       if (!fs.existsSync(backupDir)) {
         fs.mkdirSync(backupDir, { recursive: true });
@@ -1830,7 +1827,6 @@ class AdminController {
       const dbPath = path.join(__dirname, '..', 'hotspot.db');
       const backupDir = path.join(__dirname, '..', 'backups');
 
-      // Verify uploaded file is valid SQLite database
       try {
         const Database = require('better-sqlite3');
         const testDb = new Database(uploadedFile.path, { readonly: true });
@@ -1848,7 +1844,6 @@ class AdminController {
         return res.redirect('/admin/settings');
       }
 
-      // Create backup of current database before restore
       if (fs.existsSync(dbPath)) {
         if (!fs.existsSync(backupDir)) {
           fs.mkdirSync(backupDir, { recursive: true });
@@ -1860,7 +1855,6 @@ class AdminController {
         console.log('[RestoreDatabase] Backup created before restore:', backupPath);
       }
 
-      // Close existing database connection before restore
       try {
         closeDatabase();
         console.log('[RestoreDatabase] Database connection closed');
@@ -1868,10 +1862,8 @@ class AdminController {
         console.warn('[RestoreDatabase] Error closing database (may not be open):', closeError.message);
       }
 
-      // Wait a moment for file handles to release
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Replace database with uploaded file
       try {
         fs.copyFileSync(uploadedFile.path, dbPath);
         console.log('[RestoreDatabase] Database file replaced successfully');
@@ -1881,17 +1873,14 @@ class AdminController {
         return res.redirect('/admin/settings');
       }
 
-      // Fix permissions
       try {
         fs.chmodSync(dbPath, 0o664);
       } catch (permError) {
         console.warn('[RestoreDatabase] Could not set permissions:', permError.message);
       }
 
-      // Clean up uploaded temp file
       fs.unlinkSync(uploadedFile.path);
 
-      // Verify restored database
       try {
         const Database = require('better-sqlite3');
         const verifyDb = new Database(dbPath, { readonly: true });

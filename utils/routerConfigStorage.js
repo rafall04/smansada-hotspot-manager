@@ -62,7 +62,6 @@ function getFromEnv() {
     };
   }
 
-  // If env vars not set, return defaults with warning
   console.warn('[RouterConfigStorage] ⚠️  Router configuration not found in environment variables');
   console.warn('[RouterConfigStorage] 💡 Set ROUTER_IP, ROUTER_USER, ROUTER_PASSWORD_ENCRYPTED in .env file');
   console.warn('[RouterConfigStorage] 💡 Using default configuration (may not work)');

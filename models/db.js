@@ -49,7 +49,6 @@ function getDatabase() {
     console.log('[DB] Current working directory:', process.cwd());
     console.log('[DB] __dirname:', __dirname);
     
-    // Verify database directory is writable
     const dbDir = path.dirname(dbPath);
     try {
       fs.accessSync(dbDir, fs.constants.W_OK);
@@ -60,7 +59,6 @@ function getDatabase() {
       throw new Error(`Database directory is not writable: ${dbDir}. Check permissions.`);
     }
     
-    // Verify database file is writable (if it exists)
     if (fs.existsSync(dbPath)) {
       try {
         fs.accessSync(dbPath, fs.constants.W_OK);
@@ -86,10 +84,7 @@ function getDatabase() {
     console.log('[DB] ✓ Set synchronous=FULL (maximum durability)');
 
     // CRITICAL: Set journal mode to DELETE to avoid WAL file permission issues
-    // WAL mode creates additional files (hotspot.db-wal, hotspot.db-shm) which can cause:
-    // - Permission errors
-    // - Lock contention with multiple connections
-    // - Data not being visible across connections immediately
+    // WAL mode creates additional files which can cause permission errors and lock contention
     const journalMode = db.pragma('journal_mode');
     if (journalMode && journalMode.journal_mode && journalMode.journal_mode.toUpperCase() === 'WAL') {
       console.log('[DB] Switching from WAL to DELETE journal mode');
@@ -97,7 +92,6 @@ function getDatabase() {
     }
     console.log('[DB] ✓ Journal mode: DELETE');
 
-    // Verify settings
     const syncCheck = db.pragma('synchronous', { simple: true });
     const journalCheck = db.pragma('journal_mode', { simple: true });
     console.log('[DB] ✓ Database initialized with settings:');
@@ -149,23 +143,15 @@ function checkpoint() {
       // Step 1: Ensure all pending transactions are committed
       db.exec('BEGIN IMMEDIATE; COMMIT;');
       
-      // Step 2: Force SQLite to flush all data to OS buffers
-      // This ensures all dirty pages are written
       db.pragma('synchronous = FULL');
-      
-      // Step 3: Force SQLite to optimize and flush
       db.pragma('optimize');
       
-      // Step 4: CRITICAL - Force OS to flush to physical disk
-      // This is the most important step to prevent data loss on reboot
+      // CRITICAL: Force OS to flush to physical disk to prevent data loss on reboot
       // better-sqlite3 doesn't expose fsync directly, so we use the file descriptor
       try {
-        // Get the file descriptor from better-sqlite3's internal handle
-        // Note: better-sqlite3 uses native bindings, we need to sync via fs module
         if (fs.existsSync(dbPath)) {
           const fd = fs.openSync(dbPath, 'r+');
           try {
-            // Force OS to write all buffered data to disk
             fs.fsyncSync(fd);
             console.log('[DB] ✓ OS fsync completed - data guaranteed on disk');
           } finally {
@@ -173,25 +159,20 @@ function checkpoint() {
           }
         }
       } catch (fsyncError) {
-        // If fsync fails, log warning but don't fail the checkpoint
-        // This can happen if file is locked or permissions issue
         console.warn('[DB] ⚠️  fsync warning (non-critical):', fsyncError.message);
       }
       
-      // Step 5: Clean up any journal files that might cause rollback on reboot
-      // Journal files in DELETE mode should not exist, but clean them up just in case
+      // Clean up any journal files that might cause rollback on reboot
       const dbDir = path.dirname(dbPath);
       const journalFile = dbPath + '-journal';
       const walFile = dbPath + '-wal';
       const shmFile = dbPath + '-shm';
       
       try {
-        // Remove journal file if it exists (should not exist in DELETE mode)
         if (fs.existsSync(journalFile)) {
           fs.unlinkSync(journalFile);
           console.log('[DB] ✓ Removed stale journal file');
         }
-        // Remove WAL files if they exist (should not exist in DELETE mode)
         if (fs.existsSync(walFile)) {
           fs.unlinkSync(walFile);
           console.log('[DB] ✓ Removed stale WAL file');

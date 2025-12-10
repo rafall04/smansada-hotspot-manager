@@ -43,7 +43,6 @@ function generateEncryptedPassword(plainPassword) {
   }
 }
 
-// Get password from command line argument or prompt
 const passwordArg = process.argv[2];
 
 if (passwordArg) {
