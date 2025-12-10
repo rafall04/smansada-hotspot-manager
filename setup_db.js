@@ -286,10 +286,7 @@ async function setupDatabase() {
     const settingsExists = db.prepare('SELECT id FROM settings WHERE id = 1').get();
 
     if (!settingsExists) {
-      console.log('Initializing default router settings...');
-      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
-      const settingsColumnNames = settingsColumns.map((col) => col.name);
-      
+      console.log('Initializing default settings...');
       db.prepare(
         `
         INSERT INTO settings (id, school_name)
