@@ -1034,8 +1034,26 @@
                     const formData = new FormData(form);
                     const response = await fetch('/admin/users/delete-all-guru', {
                       method: 'POST',
+                      headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                      },
                       body: formData
                     });
+
+                    if (!response.ok) {
+                      const errorText = await response.text();
+                      throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
+                    }
+
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                      const text = await response.text();
+                      if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                        throw new Error('Server mengembalikan halaman HTML. Mungkin terjadi redirect atau error.');
+                      }
+                      throw new Error('Response bukan JSON: ' + contentType);
+                    }
 
                     const data = await response.json();
 

@@ -1116,11 +1116,14 @@ class AdminController {
   static async deleteAllGuru(req, res) {
     if (res.headersSent) return;
 
+    const isJsonRequest = (req.headers.accept && req.headers.accept.includes('application/json')) ||
+                         (req.headers['x-requested-with'] === 'XMLHttpRequest');
+
     try {
       const { admin_password } = req.body;
 
       if (!admin_password) {
-        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+        if (isJsonRequest) {
           return res.status(400).json({
             success: false,
             message: 'Password admin wajib diisi'
@@ -1132,7 +1135,7 @@ class AdminController {
 
       const adminUser = User.findById(req.session.userId);
       if (!adminUser) {
-        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+        if (isJsonRequest) {
           return res.status(401).json({
             success: false,
             message: 'Admin user tidak ditemukan'
@@ -1144,7 +1147,7 @@ class AdminController {
 
       const passwordMatch = await bcrypt.compare(admin_password, adminUser.password_hash);
       if (!passwordMatch) {
-        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+        if (isJsonRequest) {
           return res.status(401).json({
             success: false,
             message: 'Password admin salah'
@@ -1158,7 +1161,7 @@ class AdminController {
       const allGuru = db.prepare("SELECT id, username, mikrotik_comment_id FROM users WHERE role = 'guru'").all();
 
       if (allGuru.length === 0) {
-        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+        if (isJsonRequest) {
           return res.json({
             success: true,
             message: 'Tidak ada user guru yang perlu dihapus',
@@ -1206,7 +1209,7 @@ class AdminController {
 
       const successMessage = `Berhasil menghapus ${allGuru.length} user guru${mikrotikErrors.length > 0 ? `. ${mikrotikErrors.length} error di Mikrotik` : ''}`;
 
-      if (req.headers.accept && req.headers.accept.includes('application/json')) {
+      if (isJsonRequest) {
         return res.json({
           success: true,
           message: successMessage,
@@ -1224,7 +1227,7 @@ class AdminController {
       if (res.headersSent) return;
       console.error('Delete all guru error:', error);
       
-      if (req.headers.accept && req.headers.accept.includes('application/json')) {
+      if (isJsonRequest) {
         return res.status(500).json({
           success: false,
           message: 'Gagal menghapus semua user guru: ' + error.message
