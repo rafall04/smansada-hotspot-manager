@@ -4,9 +4,12 @@ const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
 const flash = require('connect-flash');
 const path = require('path');
+const cron = require('node-cron');
 const { getDatabase, closeDatabase } = require('./models/db');
 const Settings = require('./models/Settings');
 const formatter = require('./utils/formatter');
+const { backupDatabase } = require('./utils/backupHelper');
+const { sendTelegramDocument, sendTelegramMessage, escapeHtml } = require('./services/notificationService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -171,10 +174,100 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+async function performAutoBackup() {
+  try {
+    console.log('[AutoBackup] Starting scheduled backup...');
+    
+    const backupResult = await backupDatabase();
+    
+    if (!backupResult.success) {
+      throw new Error('Backup failed');
+    }
+
+    console.log('[AutoBackup] ✓ Backup created:', backupResult.backupFilename);
+    console.log('[AutoBackup]   Size:', backupResult.backupSizeFormatted);
+
+    const settings = Settings.get();
+    
+    if (!settings.telegram_bot_token || !settings.telegram_chat_id) {
+      console.log('[AutoBackup] ⚠️  Telegram not configured, skipping upload');
+      return;
+    }
+
+    const { formatActivityMessage } = require('./services/notificationService');
+    
+    const details = `${backupResult.backupFilename} | ${backupResult.backupSizeFormatted} | ${backupResult.integrityOk ? 'Integrity OK' : 'Integrity Warning'}`;
+    const caption = formatActivityMessage('BACKUP_DATABASE', 'System', 'system', details, 'unknown');
+
+    console.log('[AutoBackup] Uploading to Telegram...');
+    
+    const uploadResult = await sendTelegramDocument(
+      backupResult.backupPath,
+      caption
+    );
+
+    if (uploadResult.success) {
+      console.log('[AutoBackup] ✓ Backup uploaded to Telegram successfully');
+    } else {
+      console.error('[AutoBackup] ✗ Failed to upload to Telegram:', uploadResult.message);
+      
+      const errorMessage = `⚠️ <b>Database Backup Warning</b>\n\n` +
+        `<b>User:</b> 🤖 <code>System</code>\n` +
+        `<b>Role:</b> <b>SYSTEM</b>\n` +
+        `<b>Detail:</b> <code>Backup created but upload failed: ${escapeHtml(uploadResult.message)}</code>\n` +
+        `<b>File:</b> <code>${escapeHtml(backupResult.backupFilename)} (${escapeHtml(backupResult.backupSizeFormatted)})</code>\n` +
+        `<b>Time:</b> <code>${escapeHtml(currentTime)}</code>\n\n` +
+        `<i>Mikrotik Hotspot Manager</i>`;
+      
+      await sendTelegramMessage(errorMessage);
+    }
+  } catch (error) {
+    console.error('[AutoBackup] ✗ Backup error:', error.message);
+    console.error('[AutoBackup] Stack:', error.stack);
+    
+    const settings = Settings.get();
+    if (settings.telegram_bot_token && settings.telegram_chat_id) {
+      const { formatActivityMessage } = require('./services/notificationService');
+      const errorDetails = `Backup failed: ${error.message}`;
+      const errorMessage = formatActivityMessage('BACKUP_DATABASE', 'System', 'system', errorDetails, 'unknown');
+      
+      try {
+        await sendTelegramMessage(errorMessage);
+      } catch (telegramError) {
+        console.error('[AutoBackup] Failed to send error notification:', telegramError.message);
+      }
+    }
+  }
+}
+
+const cronSchedule = process.env.BACKUP_CRON_SCHEDULE || '0 6 * * *';
+const cronTimeZone = process.env.BACKUP_CRON_TIMEZONE || 'Asia/Jakarta';
+
+const backupTask = cron.schedule(cronSchedule, performAutoBackup, {
+  scheduled: false,
+  timezone: cronTimeZone
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log('Make sure to run "npm run setup-db" to initialize the database');
   console.log('[DB] Using shared database connection with synchronous=FULL for maximum durability');
+  
+  backupTask.start();
+  console.log(`[AutoBackup] ✓ Scheduled backup enabled (${cronSchedule} - ${cronTimeZone})`);
+  console.log('[AutoBackup]   Backup will run daily at 6:00 AM (default)');
+  console.log('[AutoBackup]   Manual backup: POST /admin/settings/backup-now');
 });
 
-module.exports = app;
+module.exports = {
+  app,
+  performAutoBackup
+};

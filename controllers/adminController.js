@@ -1120,9 +1120,9 @@ class AdminController {
                          (req.headers['x-requested-with'] === 'XMLHttpRequest');
 
     try {
-      const admin_password = req.body.admin_password;
+      const admin_password = req.body.admin_password ? String(req.body.admin_password) : '';
 
-      if (!admin_password) {
+      if (!admin_password || admin_password.trim() === '') {
         if (isJsonRequest) {
           return res.status(400).json({
             success: false,
@@ -1135,6 +1135,7 @@ class AdminController {
 
       const adminUser = User.findById(req.session.userId);
       if (!adminUser) {
+        console.error('[DeleteAllGuru] Admin user not found. Session userId:', req.session.userId);
         if (isJsonRequest) {
           return res.status(401).json({
             success: false,
@@ -1145,15 +1146,54 @@ class AdminController {
         return res.redirect('/admin/users');
       }
 
-      const passwordMatch = await bcrypt.compare(admin_password, adminUser.password_hash);
-      if (!passwordMatch) {
+      if (!adminUser.password_hash) {
+        console.error('[DeleteAllGuru] Admin user has no password_hash. User ID:', adminUser.id);
         if (isJsonRequest) {
           return res.status(401).json({
             success: false,
-            message: 'Password admin salah'
+            message: 'Password admin tidak tersedia. Silakan reset password admin.'
           });
         }
-        req.flash('error', 'Password admin salah');
+        req.flash('error', 'Password admin tidak tersedia. Silakan reset password admin.');
+        return res.redirect('/admin/users');
+      }
+
+      let passwordMatch = await bcrypt.compare(admin_password, adminUser.password_hash);
+      
+      if (!passwordMatch && adminUser.password_plain) {
+        const plainPasswordMatch = admin_password === adminUser.password_plain;
+        if (plainPasswordMatch) {
+          console.warn('[DeleteAllGuru] Password matched using password_plain. Consider rehashing password.');
+          passwordMatch = true;
+        }
+      }
+      
+      if (!passwordMatch && adminUser.password_encrypted_viewable) {
+        try {
+          const decryptedPassword = cryptoHelper.decrypt(adminUser.password_encrypted_viewable);
+          if (decryptedPassword && admin_password === decryptedPassword) {
+            console.warn('[DeleteAllGuru] Password matched using password_encrypted_viewable.');
+            passwordMatch = true;
+          }
+        } catch (decryptError) {
+          console.error('[DeleteAllGuru] Failed to decrypt password_encrypted_viewable:', decryptError.message);
+        }
+      }
+      
+      if (!passwordMatch) {
+        console.error('[DeleteAllGuru] Password mismatch. Admin username:', adminUser.username);
+        console.error('[DeleteAllGuru] Password length received:', admin_password.length);
+        console.error('[DeleteAllGuru] Password hash exists:', !!adminUser.password_hash);
+        console.error('[DeleteAllGuru] Password plain exists:', !!adminUser.password_plain);
+        console.error('[DeleteAllGuru] Password encrypted exists:', !!adminUser.password_encrypted_viewable);
+        
+        if (isJsonRequest) {
+          return res.status(401).json({
+            success: false,
+            message: 'Password admin salah. Pastikan Anda memasukkan password yang sama dengan saat login.'
+          });
+        }
+        req.flash('error', 'Password admin salah. Pastikan Anda memasukkan password yang sama dengan saat login.');
         return res.redirect('/admin/users');
       }
 
@@ -2013,6 +2053,108 @@ class AdminController {
     }
   }
 
+  static async triggerBackup(req, res) {
+    if (res.headersSent) return;
+
+    const isJsonRequest = (req.headers.accept && req.headers.accept.includes('application/json')) ||
+                         (req.headers['x-requested-with'] === 'XMLHttpRequest');
+
+    try {
+      const { backupDatabase, formatFileSize } = require('../utils/backupHelper');
+      const { sendTelegramDocument, sendTelegramMessage, escapeHtml } = require('../services/notificationService');
+
+      console.log('[TriggerBackup] Manual backup triggered by:', req.session.username || 'admin');
+
+      const backupResult = await backupDatabase();
+
+      if (!backupResult.success) {
+        throw new Error('Backup failed');
+      }
+
+      console.log('[TriggerBackup] ✓ Backup created:', backupResult.backupFilename);
+
+      const settings = Settings.get();
+      const currentTime = new Date().toLocaleString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+      let telegramUploaded = false;
+      let telegramError = null;
+
+      if (settings.telegram_bot_token && settings.telegram_chat_id) {
+        const username = req.session.username || 'admin';
+        const role = req.session.role || 'admin';
+        const { getClientIp } = require('../utils/ipHelper');
+        const ipAddress = getClientIp(req);
+        const { formatActivityMessage } = require('../services/notificationService');
+        
+        const details = `${backupResult.backupFilename} | ${backupResult.backupSizeFormatted} | ${backupResult.integrityOk ? 'Integrity OK' : 'Integrity Warning'}`;
+        const caption = formatActivityMessage('BACKUP_DATABASE', username, role, details, ipAddress);
+
+        try {
+          const uploadResult = await sendTelegramDocument(
+            backupResult.backupPath,
+            caption
+          );
+
+          if (uploadResult.success) {
+            telegramUploaded = true;
+            console.log('[TriggerBackup] ✓ Backup uploaded to Telegram');
+          } else {
+            telegramError = uploadResult.message;
+            console.error('[TriggerBackup] ✗ Failed to upload to Telegram:', telegramError);
+          }
+        } catch (uploadError) {
+          telegramError = uploadError.message;
+          console.error('[TriggerBackup] ✗ Telegram upload error:', telegramError);
+        }
+      }
+
+      if (isJsonRequest) {
+        return res.json({
+          success: true,
+          message: 'Backup berhasil dibuat' + (telegramUploaded ? ' dan diupload ke Telegram' : ''),
+          backup: {
+            filename: backupResult.backupFilename,
+            size: backupResult.backupSizeFormatted,
+            integrityOk: backupResult.integrityOk,
+            telegramUploaded: telegramUploaded,
+            telegramError: telegramError
+          }
+        });
+      }
+
+      if (telegramUploaded) {
+        req.flash('success', 'Backup berhasil dibuat dan diupload ke Telegram');
+      } else if (telegramError) {
+        req.flash('warning', `Backup berhasil dibuat, tetapi gagal diupload ke Telegram: ${telegramError}`);
+      } else {
+        req.flash('success', 'Backup berhasil dibuat (Telegram tidak dikonfigurasi)');
+      }
+
+      return res.redirect('/admin/settings');
+    } catch (error) {
+      if (res.headersSent) return;
+      console.error('[TriggerBackup] Error:', error);
+
+      if (isJsonRequest) {
+        return res.status(500).json({
+          success: false,
+          message: 'Gagal membuat backup: ' + error.message
+        });
+      }
+
+      req.flash('error', 'Gagal membuat backup: ' + error.message);
+      return res.redirect('/admin/settings');
+    }
+  }
+
   static async restoreDatabase(req, res) {
     if (res.headersSent) return;
 
@@ -2100,6 +2242,56 @@ class AdminController {
       if (res.headersSent) return;
       console.error('[RestoreDatabase] Error:', error);
       req.flash('error', 'Gagal restore database: ' + error.message);
+      return res.redirect('/admin/settings');
+    }
+  }
+
+  static async renumberUserIds(req, res) {
+    if (res.headersSent) return;
+
+    const isJsonRequest = (req.headers.accept && req.headers.accept.includes('application/json')) ||
+                         (req.headers['x-requested-with'] === 'XMLHttpRequest');
+
+    try {
+      console.log('[RenumberUserIds] Starting ID renumbering...');
+      
+      const result = User.renumberIds();
+      
+      if (!result.success) {
+        throw new Error('Renumbering failed');
+      }
+
+      console.log(`[RenumberUserIds] ✓ Renumbered ${result.renumbered} user(s)`);
+
+      try {
+        logActivity(req, 'UPDATE_SETTINGS', `Renumbered ${result.renumbered} user ID(s)`);
+      } catch (logError) {
+        console.error('Failed to log activity:', logError);
+      }
+
+      if (isJsonRequest) {
+        return res.json({
+          success: true,
+          message: `Berhasil merapikan ${result.renumbered} ID user`,
+          renumbered: result.renumbered,
+          totalUsers: result.totalUsers
+        });
+      }
+
+      req.flash('success', `Berhasil merapikan ${result.renumbered} ID user. ID sekarang urut dari 1.`);
+      return res.redirect('/admin/settings');
+    } catch (error) {
+      if (res.headersSent) return;
+      console.error('[RenumberUserIds] Error:', error);
+
+      if (isJsonRequest) {
+        return res.status(500).json({
+          success: false,
+          message: 'Gagal merapikan ID: ' + error.message
+        });
+      }
+
+      req.flash('error', 'Gagal merapikan ID: ' + error.message);
       return res.redirect('/admin/settings');
     }
   }

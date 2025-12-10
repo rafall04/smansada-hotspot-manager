@@ -34,6 +34,18 @@ router.get(
   AdminController.downloadDatabase
 );
 router.post(
+  '/admin/settings/backup-now',
+  isAuthenticated,
+  isAdmin,
+  AdminController.triggerBackup
+);
+router.post(
+  '/admin/settings/renumber-ids',
+  isAuthenticated,
+  isAdmin,
+  AdminController.renumberUserIds
+);
+router.post(
   '/admin/settings/restore-database',
   isAuthenticated,
   isAdmin,

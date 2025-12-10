@@ -45,6 +45,7 @@
     "express-session": "^1.17.3",
     "express-validator": "^7.0.1",
     "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
     "node-routeros-v2": "^1.6.12",
     "validator": "^13.11.0",
     "xlsx": "^0.18.5"

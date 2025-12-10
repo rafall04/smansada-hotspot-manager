@@ -228,6 +228,68 @@
                     </div>
                 </div>
             </div>
+
+            <div class="row justify-content-center mt-4">
+                <div class="col-lg-8">
+                    <div class="card card-clean border-success">
+                        <div class="card-header bg-success-subtle">
+                            <h5 class="mb-0"><i class="bi bi-cloud-upload"></i> Backup Manual & Upload ke Telegram</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> <strong>Info:</strong> Buat backup database dan upload otomatis ke Telegram. Backup akan tersimpan di folder <code>backups/</code> dan dikirim ke Telegram jika sudah dikonfigurasi.
+                            </div>
+
+                            <div class="d-flex flex-column flex-md-row gap-3 align-items-md-center">
+                                <div class="flex-grow-1">
+                                    <h6 class="fw-semibold mb-1"><i class="bi bi-database"></i> Backup Sekarang</h6>
+                                    <p class="text-muted small mb-0">
+                                        Buat backup database dan upload ke Telegram. Backup otomatis harian berjalan setiap pagi jam 6:00 WIB.
+                                    </p>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-success" id="backupNowBtn">
+                                        <i class="bi bi-cloud-upload"></i> Backup Sekarang
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="backupResult" class="alert d-none mt-3" role="alert"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row justify-content-center mt-4">
+                <div class="col-lg-8">
+                    <div class="card card-clean border-warning">
+                        <div class="card-header bg-warning-subtle">
+                            <h5 class="mb-0"><i class="bi bi-arrow-down-up"></i> Rapikan ID User</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> <strong>Peringatan:</strong> Fitur ini akan merapikan ID user agar urut dari 1. ID yang ada akan diubah tanpa menghapus data. <strong>Disarankan untuk backup database terlebih dahulu.</strong>
+                            </div>
+
+                            <div class="d-flex flex-column flex-md-row gap-3 align-items-md-center">
+                                <div class="flex-grow-1">
+                                    <h6 class="fw-semibold mb-1"><i class="bi bi-123"></i> Renumber User IDs</h6>
+                                    <p class="text-muted small mb-0">
+                                        Merapikan ID user yang tidak urut (misalnya: 1, 3, 5, 50, 51) menjadi urut (1, 2, 3, 4, 5). Semua data user tetap aman, hanya ID yang diubah.
+                                    </p>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-warning" id="renumberIdsBtn">
+                                        <i class="bi bi-arrow-down-up"></i> Rapikan ID
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="renumberResult" class="alert d-none mt-3" role="alert"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -241,6 +303,8 @@
             const settingsForm = document.getElementById('mainSettingsForm');
             const restoreDatabaseForm = document.getElementById('restoreDatabaseForm');
             const restoreBtn = document.getElementById('restoreBtn');
+            const backupNowBtn = document.getElementById('backupNowBtn');
+            const backupResult = document.getElementById('backupResult');
 
             if (diagnosticsBtn && diagnosticsResult) {
                 diagnosticsBtn.addEventListener('click', async function() {
@@ -347,6 +411,179 @@
                     restoreBtn.disabled = true;
                     const originalText = restoreBtn.innerHTML;
                     restoreBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Restoring...';
+                });
+            }
+
+            if (backupNowBtn && backupResult) {
+                backupNowBtn.addEventListener('click', async function() {
+                    const originalText = this.innerHTML;
+                    backupResult.classList.add('d-none');
+                    backupResult.classList.remove('alert-success', 'alert-warning', 'alert-danger');
+                    this.disabled = true;
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
+
+                    try {
+                        const response = await fetch('/admin/settings/backup-now', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            let errorMessage = 'Gagal membuat backup';
+                            
+                            try {
+                                const errorData = JSON.parse(errorText);
+                                errorMessage = errorData.message || errorMessage;
+                            } catch (e) {
+                                errorMessage = errorText.substring(0, 200) || errorMessage;
+                            }
+                            
+                            throw new Error(errorMessage);
+                        }
+
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('application/json')) {
+                            const text = await response.text();
+                            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                                throw new Error('Server mengembalikan halaman HTML. Mungkin terjadi redirect.');
+                            }
+                            throw new Error('Response bukan JSON: ' + contentType);
+                        }
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            const backup = data.backup || {};
+                            let resultHtml = '<strong><i class="bi bi-check-circle-fill"></i> Backup Berhasil!</strong><br>';
+                            
+                            if (backup.filename) {
+                                resultHtml += `<div class="mt-2"><strong>File:</strong> <code>${backup.filename}</code></div>`;
+                            }
+                            
+                            if (backup.size) {
+                                resultHtml += `<div><strong>Ukuran:</strong> <code>${backup.size}</code></div>`;
+                            }
+                            
+                            if (backup.integrityOk !== undefined) {
+                                resultHtml += `<div><strong>Integritas:</strong> ${backup.integrityOk ? '<span class="text-success">✓ OK</span>' : '<span class="text-warning">⚠️ Warning</span>'}</div>`;
+                            }
+                            
+                            if (backup.telegramUploaded) {
+                                resultHtml += `<div class="mt-2"><span class="badge bg-success"><i class="bi bi-telegram"></i> Berhasil diupload ke Telegram</span></div>`;
+                            } else if (backup.telegramError) {
+                                resultHtml += `<div class="mt-2"><span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> Backup dibuat, tetapi gagal upload ke Telegram: ${backup.telegramError}</span></div>`;
+                            } else {
+                                resultHtml += `<div class="mt-2"><span class="badge bg-info"><i class="bi bi-info-circle"></i> Telegram tidak dikonfigurasi</span></div>`;
+                            }
+
+                            backupResult.classList.remove('d-none');
+                            backupResult.classList.add('alert-success');
+                            backupResult.innerHTML = resultHtml;
+                        } else {
+                            throw new Error(data.message || 'Gagal membuat backup');
+                        }
+                    } catch (error) {
+                        console.error('Backup error:', error);
+                        backupResult.classList.remove('d-none');
+                        backupResult.classList.add('alert-danger');
+                        backupResult.innerHTML = `<strong><i class="bi bi-exclamation-triangle-fill"></i> Error:</strong> ${error.message}`;
+                    } finally {
+                        this.disabled = false;
+                        this.innerHTML = originalText;
+                    }
+                });
+            }
+
+            if (renumberIdsBtn && renumberResult) {
+                renumberIdsBtn.addEventListener('click', async function() {
+                    const confirmMessage = '⚠️ PERINGATAN: Renumber User IDs\n\n' +
+                        'Tindakan ini akan merapikan ID user agar urut dari 1.\n' +
+                        'Semua data user tetap aman, hanya ID yang diubah.\n\n' +
+                        'Disarankan untuk backup database terlebih dahulu.\n\n' +
+                        'Apakah Anda yakin ingin melanjutkan?';
+                    
+                    if (!confirm(confirmMessage)) {
+                        return;
+                    }
+
+                    const originalText = this.innerHTML;
+                    renumberResult.classList.add('d-none');
+                    renumberResult.classList.remove('alert-success', 'alert-warning', 'alert-danger');
+                    this.disabled = true;
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
+
+                    try {
+                        const response = await fetch('/admin/settings/renumber-ids', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            let errorMessage = 'Gagal merapikan ID';
+                            
+                            try {
+                                const errorData = JSON.parse(errorText);
+                                errorMessage = errorData.message || errorMessage;
+                            } catch (e) {
+                                errorMessage = errorText.substring(0, 200) || errorMessage;
+                            }
+                            
+                            throw new Error(errorMessage);
+                        }
+
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('application/json')) {
+                            const text = await response.text();
+                            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                                throw new Error('Server mengembalikan halaman HTML. Mungkin terjadi redirect.');
+                            }
+                            throw new Error('Response bukan JSON: ' + contentType);
+                        }
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            let resultHtml = `<strong><i class="bi bi-check-circle-fill"></i> ID Berhasil Dirapikan!</strong><br>`;
+                            
+                            if (data.renumbered !== undefined) {
+                                resultHtml += `<div class="mt-2"><strong>ID yang dirapikan:</strong> <code>${data.renumbered}</code> user(s)</div>`;
+                            }
+                            
+                            if (data.totalUsers !== undefined) {
+                                resultHtml += `<div><strong>Total user:</strong> <code>${data.totalUsers}</code></div>`;
+                            }
+                            
+                            resultHtml += `<div class="mt-2"><span class="badge bg-success"><i class="bi bi-check-circle"></i> ID sekarang urut dari 1</span></div>`;
+
+                            renumberResult.classList.remove('d-none');
+                            renumberResult.classList.add('alert-success');
+                            renumberResult.innerHTML = resultHtml;
+                            
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 2000);
+                        } else {
+                            throw new Error(data.message || 'Gagal merapikan ID');
+                        }
+                    } catch (error) {
+                        console.error('Renumber IDs error:', error);
+                        renumberResult.classList.remove('d-none');
+                        renumberResult.classList.add('alert-danger');
+                        renumberResult.innerHTML = `<strong><i class="bi bi-exclamation-triangle-fill"></i> Error:</strong> ${error.message}`;
+                    } finally {
+                        this.disabled = false;
+                        this.innerHTML = originalText;
+                    }
                 });
             }
         });

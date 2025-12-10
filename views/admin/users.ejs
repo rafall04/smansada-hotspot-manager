@@ -1031,14 +1031,17 @@
                   }
 
                   try {
-                    const formData = new FormData(form);
+                    const adminPassword = passwordInput.value;
                     const response = await fetch('/admin/users/delete-all-guru', {
                       method: 'POST',
                       headers: {
+                        'Content-Type': 'application/json',
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                       },
-                      body: formData
+                      body: JSON.stringify({
+                        admin_password: adminPassword
+                      })
                     });
 
                     if (!response.ok) {
