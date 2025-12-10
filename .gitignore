@@ -43,6 +43,11 @@ test_*.js
 backups/
 *.db.backup*
 
+# Router configuration (contains encrypted password)
+router-config.json
+router-config.json.backup
+router-config.json.tmp
+
 # Debug documentation (optional - uncomment if you want to exclude)
 # DEBUG_*.md
 # FIX_*.md

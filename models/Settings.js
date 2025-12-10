@@ -1,5 +1,6 @@
 const { getDatabase, checkpoint } = require('./db');
 const path = require('path');
+const routerConfig = require('../utils/routerConfig');
 
 const dbPath = path.join(__dirname, '..', 'hotspot.db');
 
@@ -53,12 +54,12 @@ class Settings {
         const columnNames = columns.map((col) => col.name);
         const hasSchoolName = columnNames.includes('school_name');
 
+        const routerConfigData = routerConfig.getRouterConfig();
+        const hasTelegram = columnNames.includes('telegram_bot_token') && columnNames.includes('telegram_chat_id');
+
         if (!result) {
           return {
-            router_ip: '192.168.88.1',
-            router_port: 8728,
-            router_user: 'admin',
-            router_password_encrypted: '',
+            ...routerConfigData,
             hotspot_dns_name: '',
             telegram_bot_token: '',
             telegram_chat_id: '',
@@ -66,31 +67,13 @@ class Settings {
           };
         }
 
-        const hasTelegram = columnNames.includes('telegram_bot_token') && columnNames.includes('telegram_chat_id');
-
-        if (columnNames.includes('router_password_encrypted')) {
-          return {
-            router_ip: result.router_ip || '192.168.88.1',
-            router_port: result.router_port || 8728,
-            router_user: result.router_user || 'admin',
-            router_password_encrypted: result.router_password_encrypted || '',
-            hotspot_dns_name: result.hotspot_dns_name || '',
-            telegram_bot_token: hasTelegram ? (result.telegram_bot_token || '') : '',
-            telegram_chat_id: hasTelegram ? (result.telegram_chat_id || '') : '',
-            school_name: hasSchoolName ? (result.school_name || 'SMAN 1 CONTOH') : 'SMAN 1 CONTOH'
-          };
-        } else {
-          return {
-            router_ip: result.router_ip || '192.168.88.1',
-            router_port: result.router_port || 8728,
-            router_user: result.router_user || 'admin',
-            router_password: result.router_password || 'admin',
-            hotspot_dns_name: result.hotspot_dns_name || '',
-            telegram_bot_token: hasTelegram ? (result.telegram_bot_token || '') : '',
-            telegram_chat_id: hasTelegram ? (result.telegram_chat_id || '') : '',
-            school_name: hasSchoolName ? (result.school_name || 'SMAN 1 CONTOH') : 'SMAN 1 CONTOH'
-          };
-        }
+        return {
+          ...routerConfigData, // router_ip, router_port, router_user, router_password_encrypted from JSON
+          hotspot_dns_name: result.hotspot_dns_name || '',
+          telegram_bot_token: hasTelegram ? (result.telegram_bot_token || '') : '',
+          telegram_chat_id: hasTelegram ? (result.telegram_chat_id || '') : '',
+          school_name: hasSchoolName ? (result.school_name || 'SMAN 1 CONTOH') : 'SMAN 1 CONTOH'
+        };
       } catch (error) {
         lastError = error;
         
@@ -119,7 +102,6 @@ class Settings {
           console.error('  7. See CODING_STANDARDS.md section "Environmental & Persistence Resilience" for detailed instructions');
           console.error('='.repeat(60));
           
-          // Single retry with minimal delay (100ms) to avoid blocking
           if (attempt < retries) {
             const delay = 100;
             console.log(`[Settings.get] Retrying once in ${delay}ms...`);
@@ -130,7 +112,6 @@ class Settings {
             continue;
           }
         } else {
-          // Non-I/O errors: log and break immediately
           console.error('[Settings.get] Database error:', error.message);
           console.error('[Settings.get] Error code:', error.code);
           break;
@@ -138,12 +119,9 @@ class Settings {
       }
     }
     
-    // All retries failed - return empty object to signal critical failure
-    // This allows the app to render with "Disconnected" status instead of crashing
     console.error('[Settings.get] ⚠️  CRITICAL: All retry attempts failed. Returning empty settings object.');
     console.error('[Settings.get] Database I/O Failed - Application will continue with default/empty settings');
     
-    // Return empty object to signal failure (caller should handle gracefully)
     return {};
   }
 
@@ -164,25 +142,24 @@ class Settings {
         const columns = db.prepare('PRAGMA table_info(settings)').all();
         const columnNames = columns.map((col) => col.name);
 
+        if (data.router_ip || data.router_port || data.router_user || data.router_password || data.router_password_encrypted) {
+          const routerUpdateData = {
+            router_ip: data.router_ip,
+            router_port: data.router_port,
+            router_user: data.router_user,
+            router_password: data.router_password,
+            router_password_encrypted: data.router_password_encrypted
+          };
+          
+          const routerUpdateSuccess = routerConfig.updateRouterConfig(routerUpdateData);
+          if (!routerUpdateSuccess) {
+            throw new Error('Failed to save router configuration to JSON file');
+          }
+          console.log('[Settings] Router configuration saved to JSON file');
+        }
+
         const fields = [];
         const values = [];
-
-        fields.push('router_ip = ?');
-        values.push(data.router_ip);
-
-        fields.push('router_port = ?');
-        values.push(data.router_port);
-
-        fields.push('router_user = ?');
-        values.push(data.router_user);
-
-        if (columnNames.includes('router_password_encrypted')) {
-          fields.push('router_password_encrypted = ?');
-          values.push(data.router_password_encrypted || '');
-        } else if (columnNames.includes('router_password')) {
-          fields.push('router_password = ?');
-          values.push(data.router_password || 'admin');
-        }
 
         if (columnNames.includes('hotspot_dns_name')) {
           fields.push('hotspot_dns_name = ?');
@@ -213,61 +190,41 @@ class Settings {
         }
 
         if (existing) {
-          const updateQuery = `UPDATE settings SET ${fields.join(', ')} WHERE id = 1`;
-          const stmt = db.prepare(updateQuery);
-          const result = stmt.run(...values);
-          
-          // CRITICAL: Force checkpoint to ensure data is written to disk
-          // This prevents data loss if the application crashes or is restarted
-          const checkpointSuccess = checkpoint();
-          if (!checkpointSuccess) {
-            console.error('[Settings] ⚠️  WARNING: Checkpoint failed, data may not be persisted!');
-          }
-          
-          // CRITICAL: Verify data was actually written (especially for router_password_encrypted)
-          // This is important to catch any silent failures
-          if (data.router_password_encrypted) {
-            const verifyStmt = db.prepare('SELECT router_password_encrypted FROM settings WHERE id = 1');
-            const verifyResult = verifyStmt.get();
-            if (!verifyResult || verifyResult.router_password_encrypted !== data.router_password_encrypted) {
-              console.error('[Settings] ❌ CRITICAL: Password verification failed after write!');
-              console.error('[Settings] Expected:', data.router_password_encrypted.substring(0, 20) + '...');
-              console.error('[Settings] Got:', verifyResult ? (verifyResult.router_password_encrypted || 'NULL').substring(0, 20) + '...' : 'NULL');
-              throw new Error('Password verification failed - data may not be persisted correctly');
-            } else {
-              console.log('[Settings] ✓ Password verification passed - data confirmed on disk');
+          if (fields.length > 0) {
+            const updateQuery = `UPDATE settings SET ${fields.join(', ')} WHERE id = 1`;
+            const stmt = db.prepare(updateQuery);
+            const result = stmt.run(...values);
+            
+            const checkpointSuccess = checkpoint();
+            if (!checkpointSuccess) {
+              console.error('[Settings] ⚠️  WARNING: Checkpoint failed, data may not be persisted!');
             }
+            
+            console.log('[Settings] Other settings updated successfully (data flushed to disk)');
+            return result;
+          } else {
+            console.log('[Settings] Only router config updated (JSON file), no database changes');
+            return { changes: 0 };
           }
-          
-          console.log('[Settings] Updated successfully (data flushed to disk)');
-          return result;
         } else {
-          const insertFields = ['id', ...fields.map(f => f.split(' = ')[0])];
-          const insertPlaceholders = '?, ' + fields.map(() => '?').join(', ');
-          const insertValues = [1, ...values];
-          const stmt = db.prepare(`INSERT INTO settings (${insertFields.join(', ')}) VALUES (${insertPlaceholders})`);
-          const result = stmt.run(...insertValues);
-          
-          // CRITICAL: Force checkpoint to ensure data is written to disk
-          const checkpointSuccess = checkpoint();
-          if (!checkpointSuccess) {
-            console.error('[Settings] ⚠️  WARNING: Checkpoint failed, data may not be persisted!');
-          }
-          
-          // CRITICAL: Verify data was actually written (especially for router_password_encrypted)
-          if (data.router_password_encrypted) {
-            const verifyStmt = db.prepare('SELECT router_password_encrypted FROM settings WHERE id = 1');
-            const verifyResult = verifyStmt.get();
-            if (!verifyResult || verifyResult.router_password_encrypted !== data.router_password_encrypted) {
-              console.error('[Settings] ❌ CRITICAL: Password verification failed after insert!');
-              throw new Error('Password verification failed - data may not be persisted correctly');
-            } else {
-              console.log('[Settings] ✓ Password verification passed - data confirmed on disk');
+          if (fields.length > 0) {
+            const insertFields = ['id', ...fields.map(f => f.split(' = ')[0])];
+            const insertPlaceholders = '?, ' + fields.map(() => '?').join(', ');
+            const insertValues = [1, ...values];
+            const stmt = db.prepare(`INSERT INTO settings (${insertFields.join(', ')}) VALUES (${insertPlaceholders})`);
+            const result = stmt.run(...insertValues);
+            
+            const checkpointSuccess = checkpoint();
+            if (!checkpointSuccess) {
+              console.error('[Settings] ⚠️  WARNING: Checkpoint failed, data may not be persisted!');
             }
+            
+            console.log('[Settings] Settings inserted successfully (data flushed to disk)');
+            return result;
+          } else {
+            console.log('[Settings] Only router config saved (JSON file), no database insert needed');
+            return { changes: 0 };
           }
-          
-          console.log('[Settings] Inserted successfully (data flushed to disk)');
-          return result;
         }
       } catch (error) {
         lastError = error;
@@ -288,11 +245,9 @@ class Settings {
             console.error(`[Settings.update] SQLITE I/O ERROR (Attempt ${attempt + 1}/${retries + 1}):`, error.message);
           }
           
-          // Retry with exponential backoff for I/O errors
           if (attempt < retries) {
-            const delay = Math.min(100 * Math.pow(2, attempt), 1000); // Max 1 second
+            const delay = Math.min(100 * Math.pow(2, attempt), 1000);
             console.log(`[Settings.update] Retrying in ${delay}ms...`);
-            // Use synchronous sleep for better-sqlite3 (which is synchronous)
             const start = Date.now();
             while (Date.now() - start < delay) {
               // Busy wait
@@ -300,7 +255,6 @@ class Settings {
             continue;
           }
         } else {
-          // Non-I/O errors: log and break immediately
           console.error('[Settings.update] Database error:', error.message);
           console.error('[Settings.update] Error code:', error.code);
           break;
@@ -308,7 +262,6 @@ class Settings {
       }
     }
     
-    // All retries failed - throw error
     console.error('[Settings.update] All retry attempts failed');
     throw lastError || new Error('Failed to update settings after retries');
   }
