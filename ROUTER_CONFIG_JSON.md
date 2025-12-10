@@ -128,9 +128,11 @@ sudo chmod 600 router-config.json  # Read/write hanya untuk owner
 
 ## 📚 Code References
 
-- `utils/routerConfig.js` - Router config manager
-- `models/Settings.js` - Settings model (menggunakan routerConfig)
+- `utils/routerConfigStorage.js` - Router config manager (multi-layer storage)
+- `models/Settings.js` - Settings model (menggunakan routerConfigStorage)
 - `services/mikrotikService.js` - Menggunakan Settings.get() yang sudah include router config
+
+**Note:** `utils/routerConfig.js` telah digantikan oleh `utils/routerConfigStorage.js` dengan multi-layer storage approach.
 
 ## ⚠️ Important Notes
 
