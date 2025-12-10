@@ -48,6 +48,18 @@ npm run setup-db
 SESSION_SECRET=your-secret-key-change-this-in-production
 PORT=3000
 NODE_ENV=development
+ENCRYPTION_KEY=your-32-byte-hex-encryption-key
+
+# Router Configuration (REQUIRED)
+ROUTER_IP=192.168.88.1
+ROUTER_PORT=8728
+ROUTER_USER=admin
+ROUTER_PASSWORD_ENCRYPTED=encrypted_hex_string_here
+```
+
+**Catatan**: Untuk generate `ROUTER_PASSWORD_ENCRYPTED`, jalankan:
+```bash
+node scripts/setup-router-env.js your_router_password
 ```
 
 4. **Jalankan server:**
