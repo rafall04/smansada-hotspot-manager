@@ -77,34 +77,25 @@ class Settings {
       } catch (error) {
         lastError = error;
         
-        // CRITICAL: Enhanced diagnostic logging for SQLITE_IOERR
         if (error.code && (error.code.includes('SQLITE_IOERR') || error.code.includes('IOERR'))) {
-          // Always log full details for I/O errors
-          console.error('='.repeat(60));
-          console.error('⚠️  CRITICAL: SQLITE I/O ERROR DETECTED (Settings.get)');
-          console.error('='.repeat(60));
-          console.error('Full error details:');
-          console.error('  Message:', error.message);
-          console.error('  Code:', error.code);
-          console.error('  Database path:', dbPath);
-          console.error('  Attempt:', attempt + 1, 'of', retries + 1);
-          console.error('');
-          console.error('ROOT CAUSE: File system permissions or concurrent access issue');
-          console.error('');
-          console.error('IMMEDIATE ACTION REQUIRED:');
-          console.error('  1. Move project out of /root to user-accessible path:');
-          console.error('     sudo mv /root/smansada-hotspot-manager /home/$(whoami)/hotspot-manager');
-          console.error('  2. Fix ownership: sudo chown -R $(whoami):$(whoami) /home/$(whoami)/hotspot-manager');
-          console.error('  3. Fix permissions: sudo chmod -R 775 /home/$(whoami)/hotspot-manager');
-          console.error('  4. Remove journal files: rm -f hotspot.db-journal hotspot.db-wal hotspot.db-shm');
-          console.error('  5. Set journal mode: sqlite3 hotspot.db "PRAGMA journal_mode=DELETE;"');
-          console.error('  6. Update PM2: pm2 delete smansada-hotspot && cd /home/$(whoami)/hotspot-manager && pm2 start ecosystem.config.js');
-          console.error('  7. See CODING_STANDARDS.md section "Environmental & Persistence Resilience" for detailed instructions');
-          console.error('='.repeat(60));
+          if (attempt === 0) {
+            console.error('[Settings.get] ⚠️  SQLITE I/O ERROR:', error.code);
+            console.error('[Settings.get] Database path:', dbPath);
+            console.error('[Settings.get] Message:', error.message);
+            
+            if (dbPath.includes('/root/') || dbPath.includes('/home/root/')) {
+              console.error('[Settings.get] ⚠️  Project is in /root directory - this can cause permission issues');
+              console.error('[Settings.get] 💡 Move project to user directory: sudo mv /home/root/smansada-hotspot-manager /home/$(whoami)/');
+              console.error('[Settings.get] 💡 Fix ownership: sudo chown -R $(whoami):$(whoami) /home/$(whoami)/smansada-hotspot-manager');
+            }
+            
+            if (attempt < retries) {
+              console.log('[Settings.get] Retrying...');
+            }
+          }
           
           if (attempt < retries) {
             const delay = 100;
-            console.log(`[Settings.get] Retrying once in ${delay}ms...`);
             const start = Date.now();
             while (Date.now() - start < delay) {
               // Busy wait
@@ -112,17 +103,30 @@ class Settings {
             continue;
           }
         } else {
-          console.error('[Settings.get] Database error:', error.message);
-          console.error('[Settings.get] Error code:', error.code);
+          if (attempt === 0) {
+            console.error('[Settings.get] Database error:', error.message);
+            console.error('[Settings.get] Error code:', error.code);
+          }
           break;
         }
       }
     }
     
-    console.error('[Settings.get] ⚠️  CRITICAL: All retry attempts failed. Returning empty settings object.');
-    console.error('[Settings.get] Database I/O Failed - Application will continue with default/empty settings');
+    if (lastError && lastError.code && (lastError.code.includes('SQLITE_IOERR') || lastError.code.includes('IOERR'))) {
+      console.warn('[Settings.get] ⚠️  Database I/O error - using default settings (application will continue)');
+    } else if (lastError) {
+      console.warn('[Settings.get] ⚠️  Database error - using default settings:', lastError.message);
+    }
     
-    return {};
+    const routerConfigData = routerConfigStorage.getRouterConfig();
+    return {
+      ...routerConfigData,
+      hotspot_dns_name: '',
+      telegram_bot_token: '',
+      telegram_chat_id: '',
+      school_name: 'SMAN 1 CONTOH',
+      _io_error: true
+    };
   }
 
   /**
