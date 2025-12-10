@@ -19,6 +19,8 @@
     "db:backup": "bash scripts/backup-database.sh",
     "perms:diagnose": "bash scripts/diagnose-permissions.sh",
     "perms:fix": "bash scripts/fix-permissions.sh",
+    "env:validate": "node scripts/validate-env.js",
+    "env:fix": "node scripts/validate-env.js --fix",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",

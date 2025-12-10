@@ -26,15 +26,38 @@ const DEFAULT_CONFIG = {
 
 /**
  * Read router config from environment variables
+ * Supports both new format (ROUTER_*) and legacy format (MIKROTIK_*)
  * @returns {Object|null} Config object or null if not set
  */
 function getFromEnv() {
-  const routerIp = process.env.ROUTER_IP;
-  const routerPort = process.env.ROUTER_PORT;
-  const routerUser = process.env.ROUTER_USER;
-  const routerPasswordEncrypted = process.env.ROUTER_PASSWORD_ENCRYPTED;
+  // Try new format first (ROUTER_*)
+  let routerIp = process.env.ROUTER_IP;
+  let routerPort = process.env.ROUTER_PORT;
+  let routerUser = process.env.ROUTER_USER;
+  let routerPasswordEncrypted = process.env.ROUTER_PASSWORD_ENCRYPTED;
+
+  // Fallback to legacy format (MIKROTIK_*)
+  if (!routerIp) routerIp = process.env.MIKROTIK_HOST;
+  if (!routerPort) routerPort = process.env.MIKROTIK_PORT;
+  if (!routerUser) routerUser = process.env.MIKROTIK_USER;
+  if (!routerPasswordEncrypted) {
+    // Legacy format might have plain password, need to encrypt it
+    const legacyPassword = process.env.MIKROTIK_PASSWORD;
+    if (legacyPassword) {
+      console.warn('[RouterConfigStorage] ⚠️  MIKROTIK_PASSWORD found (plain text). Please use ROUTER_PASSWORD_ENCRYPTED with encrypted value.');
+      console.warn('[RouterConfigStorage] 💡 Run: node scripts/setup-router-env.js your_password');
+      // Encrypt on-the-fly for backward compatibility
+      routerPasswordEncrypted = cryptoHelper.encrypt(legacyPassword);
+    }
+  }
 
   if (routerIp && routerUser && routerPasswordEncrypted) {
+    // Warn if using legacy format
+    if (process.env.MIKROTIK_HOST || process.env.MIKROTIK_USER || process.env.MIKROTIK_PASSWORD) {
+      console.warn('[RouterConfigStorage] ⚠️  Using legacy environment variable names (MIKROTIK_*).');
+      console.warn('[RouterConfigStorage] 💡 Please migrate to new format: ROUTER_IP, ROUTER_USER, ROUTER_PASSWORD_ENCRYPTED');
+    }
+
     return {
       router_ip: routerIp,
       router_port: parseInt(routerPort) || 8728,
