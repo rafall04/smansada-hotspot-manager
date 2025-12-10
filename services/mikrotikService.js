@@ -20,10 +20,6 @@ function formatMikrotikError(error) {
 }
 
 class MikrotikService {
-  /**
-   * Get router configuration from database
-   * Decrypts router password before returning
-   */
   static getRouterConfig() {
     const settings = Settings.get();
 
@@ -52,9 +48,6 @@ class MikrotikService {
     };
   }
 
-  /**
-   * Create Mikrotik connection with timeout wrapper
-   */
   static createConnection() {
     const config = this.getRouterConfig();
     return new RouterOSAPI({
@@ -65,12 +58,6 @@ class MikrotikService {
     });
   }
 
-  /**
-   * Connect to router with 5-second timeout
-   * Increased from 3 seconds to account for network variability and busy routers in production
-   * @param {RouterOSAPI} conn - RouterOSAPI connection instance
-   * @returns {Promise<void>}
-   */
   static async connectWithTimeout(conn) {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
@@ -84,9 +71,6 @@ class MikrotikService {
     ]);
   }
 
-  /**
-   * Test connection to Mikrotik router
-   */
   static async testConnection() {
     try {
       const conn = this.createConnection();
@@ -139,10 +123,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get hotspot user by comment ID
-   * Supports both exact match and format "Nama - NIP:XXXX"
-   */
   static async getHotspotUserByComment(commentId) {
     const conn = this.createConnection();
     try {
@@ -179,9 +159,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Update hotspot user
-   */
   static async updateHotspotUser(mikrotikId, username, password, commentId) {
     try {
       const conn = this.createConnection();
@@ -215,9 +192,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Kick active user session
-   */
   static async kickActiveUser(hotspotUsername) {
     try {
       const conn = this.createConnection();
@@ -247,9 +221,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Kick specific session by session ID
-   */
   static async kickSessionById(sessionId, hotspotUsername) {
     try {
       const conn = this.createConnection();
@@ -281,9 +252,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get all active sessions for user
-   */
   static async getAllActiveSessions(hotspotUsername) {
     try {
       const conn = this.createConnection();
@@ -302,11 +270,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get device quota information for a hotspot user
-   * @param {string} hotspotUsername - Hotspot username
-   * @returns {Promise<{profileName: string, maxDevices: number|null, currentDevices: number, isFull: boolean}>}
-   */
   static async getDeviceQuota(hotspotUsername) {
     try {
       const conn = this.createConnection();
@@ -370,9 +333,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get ALL active hotspot sessions (no filter)
-   */
   static async getAllActiveHotspotSessions() {
     try {
       const conn = this.createConnection();
@@ -389,11 +349,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get detailed active sessions with hostname correlation from DHCP leases
-   * Combines hotspot active sessions with DHCP lease data to provide rich session information
-   * @returns {Promise<Array>} Array of session objects with hostname, IP, MAC, uptime, and user
-   */
   static async getDetailedActiveSessions() {
     try {
       const conn = this.createConnection();
@@ -441,9 +396,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get system resources from Mikrotik
-   */
   static async getSystemResources() {
     try {
       const conn = this.createConnection();
@@ -464,9 +416,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get hotspot user by username (for mapping active sessions)
-   */
   static async getHotspotUserByUsername(username) {
     try {
       const conn = this.createConnection();
@@ -487,9 +436,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get all hotspot users from Mikrotik
-   */
   static async getAllHotspotUsers() {
     try {
       const conn = this.createConnection();
@@ -506,18 +452,11 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get active session for user (deprecated - use getAllActiveSessions)
-   */
   static async getActiveSession(hotspotUsername) {
     const sessions = await this.getAllActiveSessions(hotspotUsername);
     return sessions.length > 0 ? sessions[0] : null;
   }
 
-  /**
-   * Verify if comment ID exists in Mikrotik
-   * Searches for comments containing the NIP (supports both old format and new "Nama - NIP:XXXX" format)
-   */
   static async verifyCommentId(commentId) {
     try {
       const conn = this.createConnection();
@@ -549,9 +488,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Get list of hotspot profiles from Mikrotik
-   */
   static async getHotspotProfiles() {
     try {
       const conn = this.createConnection();
@@ -571,9 +507,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Create new hotspot user in Mikrotik
-   */
   static async createHotspotUser(username, password, commentId, profile = null) {
     try {
       const conn = this.createConnection();
@@ -613,9 +546,6 @@ class MikrotikService {
     }
   }
 
-  /**
-   * Delete hotspot user by Mikrotik ID
-   */
   static async deleteHotspotUser(mikrotikId) {
     try {
       const conn = this.createConnection();

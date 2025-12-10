@@ -33,10 +33,6 @@ const dbPath = path.join(projectRoot, 'hotspot.db');
 
 let db = null;
 
-/**
- * Get or create the shared database connection
- * @returns {Database} The shared database connection
- */
 function getDatabase() {
   if (db && db.open) {
     return db;
@@ -67,9 +63,6 @@ function getDatabase() {
       verbose: process.env.NODE_ENV === 'development' ? console.log : null
     });
 
-    // CRITICAL: Set durability settings to ensure data is written to disk
-    // synchronous=FULL: Forces SQLite to wait for OS to confirm data is written to disk
-    // This prevents data loss on system crashes or unexpected shutdowns
     db.pragma('synchronous = FULL');
 
     const journalMode = db.pragma('journal_mode');
@@ -77,7 +70,6 @@ function getDatabase() {
       db.pragma('journal_mode = DELETE');
     }
 
-    // Handle graceful shutdown
     process.on('SIGINT', closeDatabase);
     process.on('SIGTERM', closeDatabase);
     process.on('exit', closeDatabase);
@@ -90,9 +82,6 @@ function getDatabase() {
   }
 }
 
-/**
- * Close the database connection gracefully
- */
 function closeDatabase() {
   if (db && db.open) {
     try {
@@ -119,14 +108,11 @@ function closeDatabase() {
 function checkpoint() {
   if (db && db.open) {
     try {
-      // Step 1: Ensure all pending transactions are committed
       db.exec('BEGIN IMMEDIATE; COMMIT;');
       
       db.pragma('synchronous = FULL');
       db.pragma('optimize');
       
-      // CRITICAL: Force OS to flush to physical disk to prevent data loss on reboot
-      // better-sqlite3 doesn't expose fsync directly, so we use the file descriptor
       try {
         if (fs.existsSync(dbPath)) {
           const fd = fs.openSync(dbPath, 'r+');
@@ -140,7 +126,6 @@ function checkpoint() {
         console.warn('[DB] ⚠️  fsync warning (non-critical):', fsyncError.message);
       }
       
-      // Clean up any journal files that might cause rollback on reboot
       const dbDir = path.dirname(dbPath);
       const journalFile = dbPath + '-journal';
       const walFile = dbPath + '-wal';

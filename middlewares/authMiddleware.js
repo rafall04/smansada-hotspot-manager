@@ -1,6 +1,3 @@
-/**
- * Middleware untuk mengecek apakah user sudah login
- */
 function isAuthenticated(req, res, next) {
   if (req.session && req.session.userId) {
     if (req.session.mustChangePassword) {
@@ -14,9 +11,6 @@ function isAuthenticated(req, res, next) {
   res.redirect('/login');
 }
 
-/**
- * Middleware untuk mengecek apakah user adalah admin
- */
 function isAdmin(req, res, next) {
   if (req.session && req.session.role === 'admin') {
     return next();
@@ -27,9 +21,6 @@ function isAdmin(req, res, next) {
   res.redirect('/login');
 }
 
-/**
- * Middleware untuk mengecek apakah user adalah guru
- */
 function isGuru(req, res, next) {
   if (req.session && req.session.role === 'guru') {
     return next();

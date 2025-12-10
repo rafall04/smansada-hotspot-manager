@@ -1,9 +1,3 @@
-/**
- * Parse Mikrotik uptime string to total seconds
- * Handles formats: "2w1d", "10h30m", "50s", "1d2h3m4s", "HH:MM:SS"
- * @param {string} uptimeStr - Uptime string from Mikrotik
- * @returns {number} Total seconds
- */
 function parseUptimeToSeconds(uptimeStr) {
   if (!uptimeStr || uptimeStr === '0s' || uptimeStr === '0') {
     return 0;
@@ -52,11 +46,6 @@ function parseUptimeToSeconds(uptimeStr) {
   }
 }
 
-/**
- * Format seconds to readable uptime string
- * @param {number} seconds - Total seconds
- * @returns {string} Formatted uptime (e.g., "2d 5h 30m")
- */
 function formatUptime(seconds) {
   if (!seconds || seconds < 0) {
     return '0s';
@@ -79,11 +68,6 @@ function formatUptime(seconds) {
   return days + 'd ' + hours + 'h ' + minutes + 'm';
 }
 
-/**
- * Format bytes to human readable format
- * @param {string|number} bytes - Bytes value
- * @returns {string} Formatted string (e.g., "1.5 MB")
- */
 function formatBytes(bytes) {
   if (!bytes || bytes === '0' || bytes === 0) {
     return '0 B';
@@ -106,11 +90,6 @@ function formatBytes(bytes) {
   }
 }
 
-/**
- * Format ISO/SQLite date string to Asia/Jakarta time (dd/MM/yyyy HH:mm:ss)
- * @param {string} isoString
- * @returns {string}
- */
 function formatDateID(isoString) {
   if (!isoString) {
     return '-';

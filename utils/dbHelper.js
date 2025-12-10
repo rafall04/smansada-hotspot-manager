@@ -2,17 +2,9 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-/**
- * Database Helper Utilities
- * Provides functions for database diagnostics, repair, and recovery
- */
 
 const dbPath = path.join(__dirname, '..', 'hotspot.db');
 
-/**
- * Check database integrity
- * @returns {Object} { valid: boolean, message: string, details: object }
- */
 function checkDatabaseIntegrity() {
   try {
     if (!fs.existsSync(dbPath)) {
@@ -60,11 +52,6 @@ function checkDatabaseIntegrity() {
   }
 }
 
-/**
- * Backup database to a timestamped file
- * @param {string} backupDir - Directory to save backup (default: ./backups)
- * @returns {Object} { success: boolean, backupPath: string, error: string }
- */
 function backupDatabase(backupDir = path.join(__dirname, '..', 'backups')) {
   try {
     if (!fs.existsSync(dbPath)) {
@@ -98,10 +85,6 @@ function backupDatabase(backupDir = path.join(__dirname, '..', 'backups')) {
   }
 }
 
-/**
- * Repair database using VACUUM
- * @returns {Object} { success: boolean, message: string }
- */
 function repairDatabase() {
   try {
     if (!fs.existsSync(dbPath)) {
@@ -143,10 +126,6 @@ function repairDatabase() {
   }
 }
 
-/**
- * Check if database is locked by another process
- * @returns {Object} { locked: boolean, message: string }
- */
 function checkDatabaseLock() {
   try {
     const db = new Database(dbPath, { timeout: 1000 });
@@ -170,10 +149,6 @@ function checkDatabaseLock() {
   }
 }
 
-/**
- * Get database statistics
- * @returns {Object} Database statistics
- */
 function getDatabaseStats() {
   try {
     if (!fs.existsSync(dbPath)) {

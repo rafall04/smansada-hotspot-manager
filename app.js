@@ -11,6 +11,8 @@ const formatter = require('./utils/formatter');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set('trust proxy', true);
+
 function verifyDatabaseSchema() {
   try {
     const db = getDatabase();

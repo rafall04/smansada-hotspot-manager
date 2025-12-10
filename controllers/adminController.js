@@ -206,32 +206,6 @@ class AdminController {
 
   /**
    * Update Router Settings
-   * 
-   * CRITICAL: File System Permissions Fix Required
-   * ===============================================
-   * If you encounter SQLITE_IOERR_DELETE_NOENT errors, this indicates a file system
-   * permissions issue. The database file must be writable by the user running PM2.
-   * 
-   * EXECUTE THE FOLLOWING COMMANDS ON YOUR UBUNTU SERVER:
-   * 
-   * # 1. Identify the user running PM2
-   * ps aux | grep pm2
-   * 
-   * # 2. Fix ownership (replace 'root' with your PM2 user if different)
-   * sudo chown -R root:root /root/smansada-hotspot-manager
-   * 
-   * # 3. Fix permissions
-   * sudo chmod -R 775 /root/smansada-hotspot-manager
-   * sudo chmod 664 /root/smansada-hotspot-manager/hotspot.db
-   * 
-   * # 4. Re-run database setup after fixing permissions
-   * npm run setup-db
-   * 
-   * # 5. Restart PM2
-   * pm2 restart smansada-hotspot
-   * 
-   * Without proper permissions, router password and other settings will be lost
-   * due to database write failures.
    */
   static async updateSettings(req, res) {
     try {
@@ -244,7 +218,6 @@ class AdminController {
 
       if (res.headersSent) return;
 
-      // Router configuration is now ONLY stored in environment variables
       const { router_ip, router_port, router_user, router_password } = req.body;
       if (router_ip || router_port || router_user || router_password) {
         console.warn('[AdminController] ⚠️  User attempted to update router config via web UI');
@@ -277,7 +250,6 @@ class AdminController {
             return res.redirect('/admin/settings');
           }
           
-          // Router config verification removed - router config is only in env vars
         } catch (verifyError) {
           console.error('[Settings] ⚠️  CRITICAL: Post-update verification failed:', verifyError.message);
           console.error('[Settings] Error code:', verifyError.code);
@@ -321,9 +293,6 @@ class AdminController {
     }
   }
 
-  /**
-   * User Management Page
-   */
   static async usersPage(req, res) {
     try {
       if (res.headersSent) return;
@@ -380,9 +349,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Admin Management Page (Only Admin Users)
-   */
   static async manageAdminsPage(req, res) {
     if (res.headersSent) return;
     
@@ -428,9 +394,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Get hotspot profiles from Mikrotik
-   */
   static async getProfiles(req, res) {
     try {
       const profiles = await MikrotikService.getHotspotProfiles();
@@ -450,9 +413,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Verify Comment ID exists in Mikrotik
-   */
   static async verifyCommentId(req, res) {
     try {
       const { comment_id, user_type } = req.body;
@@ -522,9 +482,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Create Admin User (Admin Management)
-   */
   static async createAdminUser(req, res) {
     if (res.headersSent) {
       return;
@@ -609,9 +566,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Update Admin User
-   */
   static async updateAdminUser(req, res) {
     if (res.headersSent) {
       return;
@@ -708,9 +662,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Delete Admin User
-   */
   static async deleteAdminUser(req, res) {
     if (res.headersSent) {
       return;
@@ -769,9 +720,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Create User (Guru/Normal Users Only)
-   */
   static async createUser(req, res) {
     if (res.headersSent) {
       return;
@@ -947,9 +895,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Update User
-   */
   static async updateUser(req, res) {
     try {
       const userId = req.params.id;
@@ -1052,9 +997,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Reveal Password (Decrypt for Admin View)
-   */
   static async revealPassword(req, res) {
     try {
       if (req.session.role !== 'admin') {
@@ -1121,9 +1063,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Delete User
-   */
   static async deleteUser(req, res) {
     try {
       const userId = req.params.id;
@@ -1173,9 +1112,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Get Top 5 Users by Bandwidth Usage
-   */
   static async getTopUsers(req, res) {
     try {
       const allUsers = await MikrotikService.getAllHotspotUsers();
@@ -1222,9 +1158,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Import Users from CSV/Excel
-   */
   static async importUsers(req, res) {
     if (!req.file) {
       req.flash('error', 'File tidak ditemukan');
@@ -1330,9 +1263,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Test Telegram Notification
-   */
   static async testTelegram(req, res) {
     try {
       const { sendTelegramMessage, escapeHtml } = require('../services/notificationService');
@@ -1390,10 +1320,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Get active devices API endpoint for Live Monitoring Modal
-   * Returns detailed session data filtered for Teachers/Gurus only
-   */
   static async getActiveDevicesApi(req, res) {
     try {
       const allSessions = await MikrotikService.getDetailedActiveSessions();
@@ -1579,10 +1505,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Get Dashboard Data (Async - Non-blocking)
-   * Fetches Mikrotik data separately to avoid blocking dashboard load
-   */
   static async getDashboardData(req, res) {
     if (res.headersSent) return;
 
@@ -1797,10 +1719,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Download Database Backup
-   * Allows admin to download current database as backup
-   */
   static downloadDatabase(req, res) {
     if (res.headersSent) return;
 
@@ -1848,10 +1766,6 @@ class AdminController {
     }
   }
 
-  /**
-   * Upload and Restore Database
-   * Allows admin to upload database file to restore
-   */
   static async restoreDatabase(req, res) {
     if (res.headersSent) return;
 

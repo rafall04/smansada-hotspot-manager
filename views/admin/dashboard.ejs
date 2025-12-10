@@ -17,7 +17,6 @@
   <link href="/css/style.css" rel="stylesheet">
 </head>
 <body>
-  <!-- Standard Bootstrap Navbar -->
   <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
     <div class="container-fluid">
       <a class="navbar-brand" href="/admin/dashboard">
@@ -99,8 +98,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Total Teachers Card -->
       <div class="col">
         <div class="card card-clean">
           <div class="card-body">
@@ -116,8 +113,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Live Connections Card -->
       <div class="col">
         <div class="card card-clean">
           <div class="card-body">
@@ -135,8 +130,6 @@
           </div>
         </div>
       </div>
-
-      <!-- System Health Card -->
       <div class="col">
         <div class="card card-clean">
           <div class="card-body">
@@ -156,8 +149,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Live Monitoring Table -->
     <div class="card card-clean">
       <div class="card-header">
         <h5 class="mb-0"><i class="bi bi-list-check"></i> Live Monitoring - Teachers</h5>
@@ -185,8 +176,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Top 5 Bandwidth Usage Section -->
     <div class="row mt-4">
       <div class="col-12">
         <div class="card card-clean">
@@ -225,8 +214,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Recent Activity Section -->
     <div class="row mt-4">
       <div class="col-12">
         <div class="card card-clean">
@@ -290,8 +277,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Quick Actions -->
     <div class="row g-3 mt-4">
       <div class="col-md-4">
         <a href="/admin/settings" class="btn btn-primary w-100">
@@ -360,7 +345,6 @@
         }
 
         function updateDashboardUI(data) {
-          // Update Router Status
           const routerStatusBadge = document.getElementById('routerStatusBadge');
           const routerStatusText = document.getElementById('routerStatusText');
           const routerUptime = document.getElementById('routerUptime');
@@ -382,11 +366,9 @@
             routerUptime.textContent = data.connectionTest?.message || 'Router tidak dapat diakses';
           }
 
-          // Update Live Connections
           const totalConnections = document.getElementById('totalConnections');
           totalConnections.textContent = data.totalActiveConnections || 0;
 
-          // Update RAM Usage
           const ramUsage = document.getElementById('ramUsage');
           const ramDetails = document.getElementById('ramDetails');
           if (data.systemHealth && data.systemHealth.totalMemory > 0) {
@@ -399,7 +381,6 @@
             ramDetails.textContent = '-';
           }
 
-          // Update Monitoring Table
           const tableBody = document.getElementById('monitoringTableBody');
           if (data.usersWithSessions && data.usersWithSessions.length > 0) {
             const displayUsers = data.usersWithSessions.slice(0, 10);
@@ -472,10 +453,7 @@
           `;
         }
 
-        // Load Dashboard Data
         loadDashboardData();
-
-        // Load Top Users data asynchronously
         const topUsersLoading = document.getElementById('topUsersLoading');
         const topUsersContent = document.getElementById('topUsersContent');
         const topUsersError = document.getElementById('topUsersError');
@@ -684,7 +662,6 @@
       fetchLogs(1);
     })();
   </script>
-  <!-- Live Monitoring Modal -->
   <div class="modal fade" id="liveMonitoringModal" tabindex="-1" aria-labelledby="liveMonitoringModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
       <div class="modal-content">
@@ -716,7 +693,6 @@
                   </tr>
                 </thead>
                 <tbody id="sessionTableBody">
-                  <!-- Dynamic rows will be inserted here -->
                 </tbody>
               </table>
             </div>
@@ -866,7 +842,6 @@
         }
       });
 
-      // Helper function to escape HTML
       function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');

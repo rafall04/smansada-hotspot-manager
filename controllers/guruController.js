@@ -5,9 +5,6 @@ const MikrotikService = require('../services/mikrotikService');
 const bcrypt = require('bcrypt');
 const { logActivity } = require('../utils/logger');
 
-/**
- * Helper function to format bytes to human readable format
- */
 function formatBytes(bytes) {
   if (!bytes || bytes === '0' || bytes === 0) {
     return '0 B';
@@ -45,9 +42,6 @@ function respondGuruValidationErrors(req, res, redirectPath) {
 }
 
 class GuruController {
-  /**
-   * Dashboard Guru
-   */
   static async dashboard(req, res) {
     if (res.headersSent) return;
     
@@ -109,9 +103,6 @@ class GuruController {
     }
   }
 
-  /**
-   * Update Hotspot Credentials
-   */
   static async updateHotspotCredentials(req, res) {
     if (res.headersSent) return;
     
@@ -203,9 +194,6 @@ class GuruController {
     }
   }
 
-  /**
-   * Settings Page for Guru
-   */
   static settingsPage(req, res) {
     if (res.headersSent) return;
     
@@ -231,9 +219,6 @@ class GuruController {
     }
   }
 
-  /**
-   * Update User Settings (Username & Password Web)
-   */
   static async updateSettings(req, res) {
     if (res.headersSent) return;
     
@@ -280,10 +265,6 @@ class GuruController {
     }
   }
 
-  /**
-   * Update Web Account (Username & Password for Web Login)
-   * API endpoint for modal form
-   */
   static async updateWebAccount(req, res) {
     if (res.headersSent) return;
     
@@ -390,9 +371,6 @@ class GuruController {
     }
   }
 
-  /**
-   * Kick Active Session
-   */
   static async kickSession(req, res) {
     if (res.headersSent) return;
     
@@ -423,9 +401,6 @@ class GuruController {
     }
   }
 
-  /**
-   * Kick specific session by session ID
-   */
   static async kickSessionById(req, res) {
     try {
       const { sessionId } = req.params;
@@ -463,9 +438,6 @@ class GuruController {
       });
     }
   }
-  /**
-   * Initial Password Change Page
-   */
   static initialPasswordChangePage(req, res) {
     const user = User.findById(req.session.userId);
     if (!user || user.must_change_password !== 1) {
@@ -477,9 +449,6 @@ class GuruController {
     });
   }
 
-  /**
-   * Update Initial Password
-   */
   static async updateInitialPassword(req, res) {
     if (res.headersSent) return;
     
@@ -562,10 +531,6 @@ class GuruController {
     }
   }
 
-  /**
-   * Get Dashboard Data (Async - Non-blocking)
-   * Fetches Mikrotik data separately to avoid blocking dashboard load
-   */
   static async getDashboardData(req, res) {
     if (res.headersSent) return;
 

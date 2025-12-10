@@ -25,22 +25,11 @@ const dbPath = path.join(__dirname, '..', 'hotspot.db');
  * This ensures data consistency and proper commit behavior across all models.
  */
 
-/**
- * Helper function to sleep/delay (for retry backoff)
- * @param {number} ms - Milliseconds to sleep
- * @returns {Promise<void>}
- */
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 class Settings {
-  /**
-   * Get settings with simplified retry logic (non-blocking)
-   * Returns empty object on persistent failure to allow graceful degradation
-   * @param {number} retries - Number of retry attempts (default: 1, minimal retry)
-   * @returns {Object} Settings object or empty object on failure
-   */
   static get(retries = 1) {
     let lastError = null;
     
@@ -98,7 +87,6 @@ class Settings {
             const delay = 100;
             const start = Date.now();
             while (Date.now() - start < delay) {
-              // Busy wait
             }
             continue;
           }
@@ -129,12 +117,6 @@ class Settings {
     };
   }
 
-  /**
-   * Update settings with retry logic for transient I/O errors
-   * @param {Object} data - Settings data to update
-   * @param {number} retries - Number of retry attempts (default: 3)
-   * @returns {Object} Update result
-   */
   static update(data, retries = 3) {
     let lastError = null;
     
@@ -146,7 +128,6 @@ class Settings {
         const columns = db.prepare('PRAGMA table_info(settings)').all();
         const columnNames = columns.map((col) => col.name);
 
-        // Router configuration is now ONLY stored in environment variables
         if (data.router_ip || data.router_port || data.router_user || data.router_password || data.router_password_encrypted) {
           console.warn('[Settings] ⚠️  Router configuration cannot be saved via Settings.update()');
           console.warn('[Settings] 💡 Router config must be set in .env file (ROUTER_IP, ROUTER_USER, ROUTER_PASSWORD_ENCRYPTED)');
@@ -240,7 +221,6 @@ class Settings {
             const delay = Math.min(100 * Math.pow(2, attempt), 1000);
             const start = Date.now();
             while (Date.now() - start < delay) {
-              // Busy wait
             }
             continue;
           }

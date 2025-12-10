@@ -1,12 +1,6 @@
 const Settings = require('../models/Settings');
 const https = require('https');
 
-/**
- * Escape HTML entities in user input to prevent breaking HTML formatting
- * Only escapes special characters, NOT the HTML tags themselves
- * @param {string} text - Text to escape
- * @returns {string} - Escaped text
- */
 function escapeHtml(text) {
   if (!text) {
     return '';
@@ -19,13 +13,6 @@ function escapeHtml(text) {
     .replace(/'/g, '&#39;');
 }
 
-/**
- * Send message to Telegram
- * @param {string} message - Message to send (should already contain HTML tags)
- * @param {string} [botToken] - Optional bot token (if not provided, reads from DB)
- * @param {string} [chatId] - Optional chat ID (if not provided, reads from DB)
- * @returns {Promise<{success: boolean, message: string}>}
- */
 async function sendTelegramMessage(message, botToken = null, chatId = null) {
   try {
     if (!botToken || !chatId) {
@@ -157,9 +144,82 @@ async function sendAccountLockAlert(username, ipAddress) {
   }
 }
 
+function formatActivityMessage(action, username, role, details, ipAddress) {
+  const currentTime = new Date().toLocaleString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+
+  const roleEmoji = role === 'admin' ? '👑' : '👤';
+  const actionEmoji = getActionEmoji(action);
+  const actionName = getActionName(action);
+
+  let message = `${actionEmoji} <b>${actionName}</b>\n\n`;
+  message += `<b>User:</b> ${roleEmoji} <code>${escapeHtml(username || 'System')}</code>\n`;
+  message += `<b>Role:</b> <b>${escapeHtml((role || 'SYSTEM').toUpperCase())}</b>\n`;
+  
+  if (details) {
+    message += `<b>Detail:</b> <code>${escapeHtml(details)}</code>\n`;
+  }
+  
+  message += `<b>IP Address:</b> <code>${escapeHtml(ipAddress || 'unknown')}</code>\n`;
+  message += `<b>Time:</b> <code>${escapeHtml(currentTime)}</code>\n\n`;
+  message += `<i>Mikrotik Hotspot Manager</i>`;
+
+  return message;
+}
+
+function getActionEmoji(action) {
+  const emojiMap = {
+    'LOGIN': '🔐',
+    'LOGOUT': '👋',
+    'CREATE_USER': '➕',
+    'UPDATE_USER': '✏️',
+    'DELETE_USER': '🗑️',
+    'UPDATE_SETTINGS': '⚙️',
+    'UPDATE_PASSWORD': '🔑',
+    'KICK_SESSION': '🔌',
+    'BACKUP_DATABASE': '💾',
+    'RESTORE_DATABASE': '📥'
+  };
+  return emojiMap[action] || '📝';
+}
+
+function getActionName(action) {
+  const nameMap = {
+    'LOGIN': 'Login Alert',
+    'LOGOUT': 'Logout Alert',
+    'CREATE_USER': 'User Created',
+    'UPDATE_USER': 'User Updated',
+    'DELETE_USER': 'User Deleted',
+    'UPDATE_SETTINGS': 'Settings Updated',
+    'UPDATE_PASSWORD': 'Password Updated',
+    'KICK_SESSION': 'Session Kicked',
+    'BACKUP_DATABASE': 'Database Backup',
+    'RESTORE_DATABASE': 'Database Restored'
+  };
+  return nameMap[action] || 'Activity Log';
+}
+
+async function sendActivityNotification(action, username, role, details, ipAddress) {
+  try {
+    const message = formatActivityMessage(action, username, role, details, ipAddress);
+    await sendTelegramMessage(message);
+  } catch (error) {
+    console.error(`[Telegram] Activity notification error (${action}):`, error.message);
+  }
+}
+
 module.exports = {
   sendTelegramMessage,
   escapeHtml,
-  sendAccountLockAlert
+  sendAccountLockAlert,
+  sendActivityNotification,
+  formatActivityMessage
 };
 

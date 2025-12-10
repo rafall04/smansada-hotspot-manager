@@ -25,11 +25,6 @@ if (!process.env.IV) {
   console.warn('⚠️  Please set IV in .env file (16 characters/bytes).');
 }
 
-/**
- * Encrypt plaintext menggunakan AES-256-CBC
- * @param {string} plaintext - Text yang akan dienkripsi
- * @returns {string} - Ciphertext dalam format hex
- */
 function encrypt(plaintext) {
   if (!plaintext) {
     return null;
@@ -57,11 +52,6 @@ function encrypt(plaintext) {
   }
 }
 
-/**
- * Decrypt ciphertext menggunakan AES-256-CBC
- * @param {string} ciphertext - Ciphertext dalam format hex
- * @returns {string} - Plaintext asli
- */
 function decrypt(ciphertext) {
   if (!ciphertext) {
     return null;
@@ -100,18 +90,10 @@ function decrypt(ciphertext) {
   }
 }
 
-/**
- * Generate random encryption key (32 bytes)
- * @returns {string} - Random hex string
- */
 function generateKey() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-/**
- * Generate random IV (16 bytes)
- * @returns {string} - Random hex string
- */
 function generateIV() {
   return crypto.randomBytes(16).toString('hex');
 }
