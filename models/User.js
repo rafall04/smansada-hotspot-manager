@@ -278,12 +278,15 @@ class User {
             const originalCommentId = user.mikrotik_comment_id || null;
             const originalUsername = user.username || null;
             
-            if (originalUsername) {
-              const tempUsername = originalUsername + '_TEMP_' + oldId;
-              console.log(`[User.renumberIds] Updating username for user ${oldId}: "${originalUsername}" -> "${tempUsername}"`);
-              const updateUsernameStmt = db.prepare('UPDATE users SET username = ? WHERE id = ?');
-              updateUsernameStmt.run(tempUsername, oldId);
+            if (!originalUsername) {
+              console.warn(`[User.renumberIds] User ${oldId} has no username, skipping`);
+              continue;
             }
+            
+            const tempUsername = originalUsername + '_TEMP_' + oldId;
+            console.log(`[User.renumberIds] Updating username for user ${oldId}: "${originalUsername}" -> "${tempUsername}"`);
+            const updateUsernameStmt = db.prepare('UPDATE users SET username = ? WHERE id = ?');
+            updateUsernameStmt.run(tempUsername, oldId);
             
             if (originalComment) {
               const tempComment = originalComment + '_TEMP_' + oldId;
@@ -309,14 +312,19 @@ class User {
             
             const placeholders = fieldsToInsert.map(() => '?').join(', ');
             
-            console.log(`[User.renumberIds] Inserting temp user with ID ${tempId}, fields: [${fieldsToInsert.join(', ')}]`);
+            console.log(`[User.renumberIds] Inserting temp user with ID ${tempId}, username: "${originalUsername}"`);
             
             const insertStmt = db.prepare(`
               INSERT INTO users (id, ${fieldsToInsert.join(', ')})
               VALUES (?, ${placeholders})
             `);
             
-            insertStmt.run(tempId, ...valuesToInsert);
+            try {
+              insertStmt.run(tempId, ...valuesToInsert);
+            } catch (insertError) {
+              console.error(`[User.renumberIds] Failed to insert temp user ${tempId}:`, insertError.message);
+              throw insertError;
+            }
             
             try {
               db.prepare('UPDATE audit_logs SET user_id = ? WHERE user_id = ?').run(tempId, oldId);
@@ -354,9 +362,44 @@ class User {
             const tempComment = tempUser.mikrotik_comment || null;
             const tempCommentId = tempUser.mikrotik_comment_id || null;
             
-            const originalUsername = tempUsername ? tempUsername.replace('_TEMP_' + oldId, '') : null;
-            const originalComment = tempComment ? tempComment.replace('_TEMP_' + oldId, '') : null;
-            const originalCommentId = tempCommentId ? tempCommentId.replace('_TEMP_' + oldId, '') : null;
+            if (!tempUsername) {
+              console.warn(`[User.renumberIds] Temp user ${tempId} has no username, skipping`);
+              continue;
+            }
+            
+            const tempUsernameSuffix = '_TEMP_' + oldId;
+            const originalUsername = tempUsername.endsWith(tempUsernameSuffix) 
+              ? tempUsername.slice(0, -tempUsernameSuffix.length) 
+              : tempUsername;
+            
+            const tempCommentSuffix = '_TEMP_' + oldId;
+            const originalComment = tempComment && tempComment.endsWith(tempCommentSuffix)
+              ? tempComment.slice(0, -tempCommentSuffix.length)
+              : tempComment;
+            
+            const tempCommentIdSuffix = '_TEMP_' + oldId;
+            const originalCommentId = tempCommentId && tempCommentId.endsWith(tempCommentIdSuffix)
+              ? tempCommentId.slice(0, -tempCommentIdSuffix.length)
+              : tempCommentId;
+            
+            const finalTempUsername = originalUsername + '_FINAL_TEMP_' + newId;
+            console.log(`[User.renumberIds] Updating temp username for user ${tempId}: "${tempUsername}" -> "${finalTempUsername}"`);
+            const updateTempUsernameStmt = db.prepare('UPDATE users SET username = ? WHERE id = ?');
+            updateTempUsernameStmt.run(finalTempUsername, tempId);
+            
+            if (originalComment) {
+              const finalTempComment = originalComment + '_FINAL_TEMP_' + newId;
+              console.log(`[User.renumberIds] Updating temp mikrotik_comment for user ${tempId}: "${tempComment}" -> "${finalTempComment}"`);
+              const updateTempCommentStmt = db.prepare('UPDATE users SET mikrotik_comment = ? WHERE id = ?');
+              updateTempCommentStmt.run(finalTempComment, tempId);
+            }
+            
+            if (originalCommentId) {
+              const finalTempCommentId = originalCommentId + '_FINAL_TEMP_' + newId;
+              console.log(`[User.renumberIds] Updating temp mikrotik_comment_id for user ${tempId}: "${tempCommentId}" -> "${finalTempCommentId}"`);
+              const updateTempCommentIdStmt = db.prepare('UPDATE users SET mikrotik_comment_id = ? WHERE id = ?');
+              updateTempCommentIdStmt.run(finalTempCommentId, tempId);
+            }
             
             const userData = {};
             const fieldsToInsert = [];
@@ -391,7 +434,7 @@ class User {
             
             const placeholders = fieldsToInsert.map(() => '?').join(', ');
             
-            console.log(`[User.renumberIds] Inserting final user with ID ${newId}, fields: [${fieldsToInsert.join(', ')}]`);
+            console.log(`[User.renumberIds] Inserting final user with ID ${newId}, username: "${originalUsername || 'NULL'}"`);
             
             const insertStmt = db.prepare(`
               INSERT INTO users (id, ${fieldsToInsert.join(', ')})
