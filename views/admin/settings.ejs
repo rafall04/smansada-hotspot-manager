@@ -73,7 +73,7 @@
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4">
             <div>
                 <h2 class="fw-bold mb-1">Pengaturan Sistem</h2>
-                <p class="text-muted mb-0">Kelola konfigurasi router dan notifikasi</p>
+                <p class="text-muted mb-0">Kelola konfigurasi aplikasi dan notifikasi</p>
             </div>
             <a href="/admin/dashboard" class="btn btn-outline-secondary btn-sm mt-3 mt-md-0">
                 <i class="bi bi-arrow-left"></i> Kembali ke Dashboard
@@ -85,7 +85,7 @@
                 <div class="col-lg-8">
                     <div class="card card-clean">
                         <div class="card-header">
-                            <h5 class="mb-0"><i class="bi bi-router"></i> Konfigurasi Router Mikrotik</h5>
+                            <h5 class="mb-0"><i class="bi bi-gear"></i> Pengaturan Aplikasi</h5>
                         </div>
                         <div class="card-body">
                             <div class="mb-4">
@@ -97,47 +97,6 @@
                                 <div class="form-text">Nama ini akan tampil pada semua halaman sebagai branding.</div>
                             </div>
                             <div class="mb-4">
-                                <label for="router_ip" class="form-label">
-                                    <i class="bi bi-globe"></i> Router IP Address
-                                </label>
-                                <input type="text" class="form-control" id="router_ip" name="router_ip" 
-                                       value="<%= settings.router_ip %>" required>
-                                <div class="form-text">IP address router Mikrotik (contoh: 192.168.88.1)</div>
-                            </div>
-                            <div class="mb-4">
-                                <label for="router_port" class="form-label">
-                                    <i class="bi bi-hdd-network"></i> Router Port
-                                </label>
-                                <input type="number" class="form-control" id="router_port" name="router_port" 
-                                       value="<%= settings.router_port %>" required>
-                                <div class="form-text">Port API Mikrotik (default: 8728)</div>
-                            </div>
-                            <div class="mb-4">
-                                <label for="router_user" class="form-label">
-                                    <i class="bi bi-person"></i> Router Username
-                                </label>
-                                <input type="text" class="form-control" id="router_user" name="router_user" 
-                                       value="<%= settings.router_user %>" required>
-                                <div class="form-text">Username untuk koneksi API Mikrotik</div>
-                            </div>
-                            <div class="mb-4">
-                                <label for="router_password" class="form-label">
-                                    <i class="bi bi-key"></i> Router Password
-                                </label>
-                                <input type="password" class="form-control" id="router_password" name="router_password" 
-                                       value="<%= settings.router_password || '' %>" 
-                                       placeholder="Masukkan password router"
-                                       required>
-                                <div class="form-text">
-                                    <i class="bi bi-info-circle"></i> Password akan dienkripsi sebelum disimpan di database.
-                                    <% if (!settings.router_password || settings.router_password.trim() === '') { %>
-                                        <br><span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Password belum di-set. Silakan masukkan password router.</span>
-                                    <% } else { %>
-                                        <br><span class="text-success"><i class="bi bi-check-circle"></i> Password sudah tersimpan (kosongkan jika tidak ingin mengubah)</span>
-                                    <% } %>
-                                </div>
-                            </div>
-                            <div class="mb-4">
                                 <label for="hotspot_dns_name" class="form-label">
                                     <i class="bi bi-globe"></i> Hotspot DNS Name
                                 </label>
@@ -145,8 +104,11 @@
                                        value="<%= settings.hotspot_dns_name || '' %>" 
                                        placeholder="wifi.sekolah.sch.id">
                                 <div class="form-text">
-                                    <i class="bi bi-info-circle"></i> DNS name untuk hotspot login (opsional). Jika kosong, akan menggunakan Router IP.
+                                    <i class="bi bi-info-circle"></i> DNS name untuk hotspot login (opsional). Jika kosong, akan menggunakan Router IP dari environment variables.
                                 </div>
+                            </div>
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> <strong>Router Configuration:</strong> Konfigurasi router (IP, username, password) sekarang hanya dapat diubah melalui file <code>.env</code>. Lihat dokumentasi untuk detail.
                             </div>
                         </div>
                     </div>
@@ -286,15 +248,10 @@
             const restoreDatabaseForm = document.getElementById('restoreDatabaseForm');
             const restoreBtn = document.getElementById('restoreBtn');
 
-            if (diagnosticsBtn && settingsForm && diagnosticsResult) {
+            if (diagnosticsBtn && diagnosticsResult) {
                 diagnosticsBtn.addEventListener('click', async function() {
-                    const formData = new FormData(settingsForm);
-                    const payload = {
-                        router_ip: formData.get('router_ip') || '',
-                        router_port: formData.get('router_port') || '',
-                        router_user: formData.get('router_user') || '',
-                        router_password: formData.get('router_password') || ''
-                    };
+                    // Router config is now only from environment variables
+                    const payload = {};
 
                     const originalText = this.innerHTML;
                     diagnosticsResult.classList.add('d-none');
