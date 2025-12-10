@@ -18,6 +18,13 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000
+        // Router configuration (PRIMARY - most reliable)
+        // Uncomment and set these values for maximum reliability:
+        // ROUTER_IP: '192.168.88.1',
+        // ROUTER_PORT: '8728',
+        // ROUTER_USER: 'admin',
+        // ROUTER_PASSWORD_ENCRYPTED: 'encrypted_hex_string_here'
+        // Generate encrypted password: node scripts/setup-router-env.js your_password
       },
       error_file: path.join(projectRoot, 'logs', 'pm2-error.log'),
       out_file: path.join(projectRoot, 'logs', 'pm2-out.log'),

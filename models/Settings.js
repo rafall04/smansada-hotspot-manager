@@ -1,6 +1,6 @@
 const { getDatabase, checkpoint } = require('./db');
 const path = require('path');
-const routerConfig = require('../utils/routerConfig');
+const routerConfigStorage = require('../utils/routerConfigStorage');
 
 const dbPath = path.join(__dirname, '..', 'hotspot.db');
 
@@ -54,7 +54,7 @@ class Settings {
         const columnNames = columns.map((col) => col.name);
         const hasSchoolName = columnNames.includes('school_name');
 
-        const routerConfigData = routerConfig.getRouterConfig();
+        const routerConfigData = routerConfigStorage.getRouterConfig();
         const hasTelegram = columnNames.includes('telegram_bot_token') && columnNames.includes('telegram_chat_id');
 
         if (!result) {
@@ -151,11 +151,11 @@ class Settings {
             router_password_encrypted: data.router_password_encrypted
           };
           
-          const routerUpdateSuccess = routerConfig.updateRouterConfig(routerUpdateData);
+          const routerUpdateSuccess = routerConfigStorage.updateRouterConfig(routerUpdateData);
           if (!routerUpdateSuccess) {
-            throw new Error('Failed to save router configuration to JSON file');
+            throw new Error('Failed to save router configuration');
           }
-          console.log('[Settings] Router configuration saved to JSON file');
+          console.log('[Settings] Router configuration saved (multi-layer storage)');
         }
 
         const fields = [];
