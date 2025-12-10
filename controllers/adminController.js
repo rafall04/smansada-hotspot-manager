@@ -9,6 +9,7 @@ const formatter = require('../utils/formatter');
 const path = require('path');
 const fs = require('fs');
 const csv = require('csv-parser');
+const XLSX = require('xlsx');
 const { getDatabase, closeDatabase } = require('../models/db');
 
 const ACTION_OPTIONS = ['LOGIN', 'LOGOUT', 'UPDATE_SETTINGS', 'DELETE_USER', 'CREATE_USER', 'KICK_SESSION'];
@@ -1159,6 +1160,8 @@ class AdminController {
   }
 
   static async importUsers(req, res) {
+    if (res.headersSent) return;
+    
     if (!req.file) {
       req.flash('error', 'File tidak ditemukan');
       return res.redirect('/admin/users');
@@ -1170,37 +1173,141 @@ class AdminController {
     let processedCount = 0;
 
     try {
-      await new Promise((resolve, reject) => {
-        fs.createReadStream(req.file.path)
-          .pipe(csv())
-          .on('data', (data) => results.push(data))
-          .on('end', resolve)
-          .on('error', reject);
-      });
+      const fileExt = path.extname(req.file.originalname).toLowerCase();
+      
+      if (fileExt === '.json') {
+        const fileContent = fs.readFileSync(req.file.path, 'utf8');
+        const jsonData = JSON.parse(fileContent);
+        
+        if (!Array.isArray(jsonData)) {
+          throw new Error('JSON file must contain an array of user objects');
+        }
+        
+        for (const row of jsonData) {
+          const normalizedRow = {};
+          Object.keys(row).forEach(key => {
+            const normalizedKey = key.trim().toLowerCase();
+            normalizedRow[normalizedKey] = row[key];
+          });
+          results.push(normalizedRow);
+        }
+      } else if (fileExt === '.xlsx' || fileExt === '.xls') {
+        const workbook = XLSX.readFile(req.file.path);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        for (const row of jsonData) {
+          const normalizedRow = {};
+          Object.keys(row).forEach(key => {
+            const normalizedKey = key.trim().toLowerCase();
+            normalizedRow[normalizedKey] = row[key];
+          });
+          results.push(normalizedRow);
+        }
+      } else {
+        await new Promise((resolve, reject) => {
+          fs.createReadStream(req.file.path)
+            .pipe(csv())
+            .on('data', (data) => {
+              const normalizedRow = {};
+              Object.keys(data).forEach(key => {
+                const normalizedKey = key.trim().toLowerCase();
+                normalizedRow[normalizedKey] = data[key];
+              });
+              results.push(normalizedRow);
+            })
+            .on('end', resolve)
+            .on('error', reject);
+        });
+      }
+
+      let isNewFormat = false;
+      if (results.length > 0) {
+        const firstRow = results[0];
+        const keys = Object.keys(firstRow);
+        
+        if (keys.includes('no') || keys.includes('nama') || keys.includes('nip/user/password') || 
+            keys.includes('nip') && keys.includes('user') && keys.includes('password')) {
+          isNewFormat = true;
+        }
+      }
 
       for (const row of results) {
         processedCount++;
-        const { nip, nama_guru } = row;
-
-        if (!nip || !nama_guru) {
-          errors.push(`Row ${processedCount}: Missing required fields (nip, nama_guru)`);
-          continue;
+        
+        let nip, nama_guru, customPassword;
+        
+        if (fileExt === '.json') {
+          const identifier = row['nip'] || row['identifier'] || row['username'] || row['user'] || '';
+          nama_guru = row['nama'] || row['nama_guru'] || row['name'] || '';
+          customPassword = row['password'] || null;
+          
+          if (!identifier || !nama_guru) {
+            errors.push(`Row ${processedCount}: Missing required fields (nip/identifier/username, nama/name)`);
+            continue;
+          }
+          
+          let cleanIdentifier = String(identifier).trim();
+          if (cleanIdentifier.startsWith("'")) {
+            cleanIdentifier = cleanIdentifier.substring(1);
+          }
+          
+          nip = cleanIdentifier;
+          nama_guru = String(nama_guru).trim();
+        } else if (isNewFormat) {
+          const no = row['no'] || row['no.'] || '';
+          const nama = row['nama'] || row['name'] || '';
+          const nipUserPassword = row['nip/user/password'] || row['nip'] || row['user'] || row['password'] || 
+                                  row['nip/user'] || row['user/password'] || '';
+          
+          if (!nama || !nipUserPassword) {
+            errors.push(`Row ${processedCount}: Missing required fields (NAMA, NIP/USER/PASSWORD)`);
+            continue;
+          }
+          
+          nama_guru = String(nama).trim();
+          let identifier = String(nipUserPassword).trim();
+          
+          if (identifier.startsWith("'")) {
+            identifier = identifier.substring(1);
+          }
+          
+          nip = identifier;
+        } else {
+          nip = row['nip'] || '';
+          nama_guru = row['nama_guru'] || row['nama'] || '';
+          
+          if (!nip || !nama_guru) {
+            errors.push(`Row ${processedCount}: Missing required fields (nip, nama_guru)`);
+            continue;
+          }
+          
+          nip = String(nip).trim();
+          if (nip.startsWith("'")) {
+            nip = nip.substring(1);
+          }
+          nama_guru = String(nama_guru).trim();
         }
 
         const username = nip.trim();
-        const password = nip.trim();
-        const mikrotik_comment_id = nip.trim();
-        const mikrotik_comment_name = nama_guru.trim();
+        const password = customPassword ? customPassword.trim() : nip.trim();
+        const mikrotik_comment_id = nama_guru.trim();
+
+        if (!username || !mikrotik_comment_id) {
+          errors.push(`Row ${processedCount}: Invalid data (username or nama is empty)`);
+          continue;
+        }
 
         const existingUser = User.findByUsername(username);
         if (existingUser) {
-          errors.push(`Row ${processedCount}: NIP '${username}' already exists`);
+          errors.push(`Row ${processedCount}: NIP/User '${username}' already exists`);
           continue;
         }
 
         const existingComment = User.findByComment(mikrotik_comment_id);
         if (existingComment) {
-          errors.push(`Row ${processedCount}: NIP '${mikrotik_comment_id}' already exists as Comment ID`);
+          errors.push(`Row ${processedCount}: Nama '${mikrotik_comment_id}' already exists as Comment ID`);
           continue;
         }
 
@@ -1214,8 +1321,7 @@ class AdminController {
           password_encrypted_viewable: passwordEncrypted,
           role: 'guru',
           mikrotik_comment_id,
-          must_change_password: 1,
-          mikrotik_comment_name
+          must_change_password: 1
         });
       }
 
@@ -1235,8 +1341,8 @@ class AdminController {
             await MikrotikService.createHotspotUser(
               user.username,
               user.password_plain,
-              user.mikrotik_comment_name,
-              'default' // Default profile
+              user.mikrotik_comment_id,
+              'default'
             );
 
           } catch (mtError) {
@@ -1245,6 +1351,8 @@ class AdminController {
         }
 
         fs.unlinkSync(req.file.path);
+
+        logActivity(req, 'CREATE_USER', `Bulk import: ${successUsers.length} users imported`);
 
         const summary = `Import Selesai. Total: ${processedCount}, Sukses: ${successUsers.length}, Gagal: ${errors.length}. ${mikrotikErrors.length > 0 ? 'Mikrotik Issues: ' + mikrotikErrors.length : ''}`;
         req.flash('success', summary);

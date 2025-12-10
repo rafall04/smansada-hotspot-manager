@@ -19,10 +19,10 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
-  if (ext === '.csv' || ext === '.xlsx') {
+  if (ext === '.csv' || ext === '.xlsx' || ext === '.xls' || ext === '.json') {
     cb(null, true);
   } else {
-    cb(new Error('Only .csv and .xlsx files are allowed!'), false);
+    cb(new Error('Only .csv, .xlsx, .xls, and .json files are allowed!'), false);
   }
 };
 

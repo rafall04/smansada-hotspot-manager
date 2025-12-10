@@ -346,10 +346,24 @@
                 <form method="POST" action="/admin/users/import" enctype="multipart/form-data">
                   <div class="modal-body">
                     <div class="alert alert-info">
-                      Format CSV: username, password, role, mikrotik_comment_id
-                      <a href="/downloads/Template.csv" class="alert-link">Download Template</a>
-                                        </div>
-                    <input type="file" class="form-control" name="file" accept=".csv,.xlsx" required>
+                      <strong>Format Import:</strong><br>
+                      <small>
+                        <strong>Nama</strong> → Comment di Mikrotik (Comment ID)<br>
+                        <strong>NIP/Nomor HP</strong> → Username & Password (Web & Hotspot Mikrotik)<br>
+                        <strong>File yang didukung:</strong> .json, .xlsx, .xls, .csv
+                      </small>
+                      <br><br>
+                      <strong>Download Template:</strong><br>
+                      <a href="/downloads/Template.json" class="alert-link">📄 Template JSON (Recommended)</a> | 
+                      <a href="/downloads/Template_New.csv" class="alert-link">📊 Template Excel/CSV (NO, NAMA, NIP/USER/PASSWORD)</a> | 
+                      <a href="/downloads/Template.csv" class="alert-link">📋 Template CSV (nip, nama_guru)</a>
+                      <br><br>
+                      <small class="text-muted">
+                        <strong>Format JSON:</strong> <code>[{"nama": "Nama Guru", "nip": "NIP atau Nomor HP"}]</code><br>
+                        <strong>Catatan:</strong> NIP bisa diganti dengan Nomor HP jika NIP tidak diketahui
+                      </small>
+                    </div>
+                    <input type="file" class="form-control" name="userFile" accept=".json,.csv,.xlsx,.xls" required>
                                     </div>
                   <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
