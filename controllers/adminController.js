@@ -1113,6 +1113,129 @@ class AdminController {
     }
   }
 
+  static async deleteAllGuru(req, res) {
+    if (res.headersSent) return;
+
+    try {
+      const { admin_password } = req.body;
+
+      if (!admin_password) {
+        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+          return res.status(400).json({
+            success: false,
+            message: 'Password admin wajib diisi'
+          });
+        }
+        req.flash('error', 'Password admin wajib diisi');
+        return res.redirect('/admin/users');
+      }
+
+      const adminUser = User.findById(req.session.userId);
+      if (!adminUser) {
+        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+          return res.status(401).json({
+            success: false,
+            message: 'Admin user tidak ditemukan'
+          });
+        }
+        req.flash('error', 'Admin user tidak ditemukan');
+        return res.redirect('/admin/users');
+      }
+
+      const passwordMatch = await bcrypt.compare(admin_password, adminUser.password_hash);
+      if (!passwordMatch) {
+        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+          return res.status(401).json({
+            success: false,
+            message: 'Password admin salah'
+          });
+        }
+        req.flash('error', 'Password admin salah');
+        return res.redirect('/admin/users');
+      }
+
+      const db = getDatabase();
+      const allGuru = db.prepare("SELECT id, username, mikrotik_comment_id FROM users WHERE role = 'guru'").all();
+
+      if (allGuru.length === 0) {
+        if (req.headers.accept && req.headers.accept.includes('application/json')) {
+          return res.json({
+            success: true,
+            message: 'Tidak ada user guru yang perlu dihapus',
+            deletedCount: 0
+          });
+        }
+        req.flash('info', 'Tidak ada user guru yang perlu dihapus');
+        return res.redirect('/admin/users');
+      }
+
+      const mikrotikErrors = [];
+      const deletedUsers = [];
+
+      for (const guru of allGuru) {
+        try {
+          if (guru.mikrotik_comment_id) {
+            try {
+              const verification = await MikrotikService.verifyCommentId(guru.mikrotik_comment_id);
+              if (verification.exists && verification.user && verification.user['.id']) {
+                await MikrotikService.deleteHotspotUser(verification.user['.id']);
+              }
+            } catch (mikrotikError) {
+              mikrotikErrors.push(`User ${guru.username}: ${mikrotikError.message}`);
+              console.error(`Failed to delete Mikrotik user ${guru.username}:`, mikrotikError);
+            }
+          }
+        } catch (error) {
+          mikrotikErrors.push(`User ${guru.username}: ${error.message}`);
+        }
+
+        deletedUsers.push(guru.username);
+      }
+
+      const deleteTransaction = db.transaction(() => {
+        for (const guru of allGuru) {
+          db.prepare('DELETE FROM login_attempts WHERE user_id = ?').run(guru.id);
+          db.prepare('DELETE FROM audit_logs WHERE user_id = ?').run(guru.id);
+          db.prepare("DELETE FROM users WHERE id = ? AND role = 'guru'").run(guru.id);
+        }
+      });
+
+      deleteTransaction();
+
+      logActivity(req, 'DELETE_USER', `Bulk delete: ${allGuru.length} guru users deleted`);
+
+      const successMessage = `Berhasil menghapus ${allGuru.length} user guru${mikrotikErrors.length > 0 ? `. ${mikrotikErrors.length} error di Mikrotik` : ''}`;
+
+      if (req.headers.accept && req.headers.accept.includes('application/json')) {
+        return res.json({
+          success: true,
+          message: successMessage,
+          deletedCount: allGuru.length,
+          mikrotikErrors: mikrotikErrors.length > 0 ? mikrotikErrors : []
+        });
+      }
+
+      req.flash('success', successMessage);
+      if (mikrotikErrors.length > 0) {
+        req.flash('warning', `Beberapa user hotspot di Mikrotik gagal dihapus: ${mikrotikErrors.slice(0, 3).join(', ')}${mikrotikErrors.length > 3 ? '...' : ''}`);
+      }
+      return res.redirect('/admin/users');
+    } catch (error) {
+      if (res.headersSent) return;
+      console.error('Delete all guru error:', error);
+      
+      if (req.headers.accept && req.headers.accept.includes('application/json')) {
+        return res.status(500).json({
+          success: false,
+          message: 'Gagal menghapus semua user guru: ' + error.message
+        });
+      }
+
+      req.flash('error', 'Gagal menghapus semua user guru: ' + error.message);
+      return res.redirect('/admin/users');
+    }
+  }
+
   static async getTopUsers(req, res) {
     try {
       const allUsers = await MikrotikService.getAllHotspotUsers();

@@ -208,8 +208,11 @@
 
             <!-- User List -->
             <div class="card card-clean">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold">Daftar User</h5>
+                <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteAllGuruModal">
+                  <i class="bi bi-trash3"></i> Hapus Semua Guru
+                </button>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -392,6 +395,55 @@
         </div>
           </div>
 
+          <!-- Delete All Guru Modal -->
+          <div class="modal fade" id="deleteAllGuruModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                  <h5 class="modal-title fw-bold">
+                    <i class="bi bi-exclamation-triangle"></i> Hapus Semua User Guru
+                  </h5>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="/admin/users/delete-all-guru" id="deleteAllGuruForm">
+                  <div class="modal-body">
+                    <div class="alert alert-danger">
+                      <strong><i class="bi bi-exclamation-triangle"></i> PERINGATAN!</strong><br>
+                      Tindakan ini akan menghapus <strong>SEMUA</strong> user dengan role <strong>GURU</strong> dari database dan Mikrotik.<br>
+                      <strong>Tindakan ini TIDAK DAPAT DIBATALKAN!</strong>
+                    </div>
+                    <div class="mb-3">
+                      <label for="admin_password" class="form-label">
+                        Password Admin <span class="text-danger">*</span>
+                      </label>
+                      <input type="password" class="form-control" id="admin_password" name="admin_password" required autocomplete="current-password">
+                      <div class="form-text">Masukkan password admin Anda untuk konfirmasi</div>
+                    </div>
+                    <div class="alert alert-info">
+                      <small>
+                        <i class="bi bi-info-circle"></i> Yang akan dihapus:
+                        <ul class="mb-0 mt-2">
+                          <li>Semua user dengan role "guru" dari database</li>
+                          <li>User hotspot terkait di Mikrotik (jika ada)</li>
+                          <li>Login attempts dan audit logs terkait</li>
+                        </ul>
+                        <strong class="text-danger">User dengan role "admin" TIDAK akan dihapus.</strong>
+                      </small>
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                      <i class="bi bi-x-circle"></i> Batal
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                      <i class="bi bi-trash3"></i> Hapus Semua Guru
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
     <footer class="mt-5 py-3 text-center text-muted small border-top">
       &copy; RAF 2025 <%= (settings && settings.school_name) || 'Hotspot Manager' %>. Built with ❤️.
     </footer>
@@ -438,6 +490,11 @@
                   const loadProfilesImportBtn = document.getElementById('loadProfilesImportBtn');
                   if (loadProfilesImportBtn) {
                     loadProfilesImportBtn.addEventListener('click', this.loadProfilesForImport.bind(this));
+                  }
+
+                  const deleteAllGuruForm = document.getElementById('deleteAllGuruForm');
+                  if (deleteAllGuruForm) {
+                    deleteAllGuruForm.addEventListener('submit', this.handleDeleteAllGuru.bind(this));
                   }
 
                   if (togglePasswordBtn) {
@@ -947,6 +1004,80 @@
                       eyeIcon.classList.add('bi-eye');
                     }
                     this.toggleUserTypeFields();
+                  }
+                },
+
+                handleDeleteAllGuru: async function (e) {
+                  e.preventDefault();
+                  
+                  const form = e.target;
+                  const passwordInput = form.querySelector('#admin_password');
+                  const submitBtn = form.querySelector('button[type="submit"]');
+                  
+                  if (!passwordInput || !passwordInput.value.trim()) {
+                    alert('Password admin wajib diisi');
+                    return;
+                  }
+
+                  const confirmMessage = 'PERINGATAN! Tindakan ini akan menghapus SEMUA user guru dari database dan Mikrotik.\n\nTindakan ini TIDAK DAPAT DIBATALKAN!\n\nApakah Anda yakin ingin melanjutkan?';
+                  
+                  if (!confirm(confirmMessage)) {
+                    return;
+                  }
+
+                  if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Menghapus...';
+                  }
+
+                  try {
+                    const formData = new FormData(form);
+                    const response = await fetch('/admin/users/delete-all-guru', {
+                      method: 'POST',
+                      body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                      if (typeof displayFeedbackModal === 'function') {
+                        displayFeedbackModal('success', 'Berhasil', data.message || 'Semua user guru berhasil dihapus');
+                      } else {
+                        alert('Berhasil: ' + (data.message || 'Semua user guru berhasil dihapus'));
+                      }
+                      
+                      const modal = bootstrap.Modal.getInstance(document.getElementById('deleteAllGuruModal'));
+                      if (modal) {
+                        modal.hide();
+                      }
+                      
+                      setTimeout(() => {
+                        window.location.reload();
+                      }, 1500);
+                    } else {
+                      if (typeof displayFeedbackModal === 'function') {
+                        displayFeedbackModal('error', 'Gagal', data.message || 'Gagal menghapus semua user guru');
+                      } else {
+                        alert('Gagal: ' + (data.message || 'Gagal menghapus semua user guru'));
+                      }
+                      
+                      if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="bi bi-trash3"></i> Hapus Semua Guru';
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error:', error);
+                    if (typeof displayFeedbackModal === 'function') {
+                      displayFeedbackModal('error', 'Kesalahan', 'Terjadi kesalahan: ' + error.message);
+                    } else {
+                      alert('Terjadi kesalahan: ' + error.message);
+                    }
+                    
+                    if (submitBtn) {
+                      submitBtn.disabled = false;
+                      submitBtn.innerHTML = '<i class="bi bi-trash3"></i> Hapus Semua Guru';
+                    }
                   }
                 }
               };
