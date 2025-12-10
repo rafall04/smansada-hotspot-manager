@@ -154,25 +154,36 @@
         <h5 class="mb-0"><i class="bi bi-list-check"></i> Live Monitoring - Teachers</h5>
       </div>
       <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-hover align-middle">
-            <thead>
-              <tr>
-                <th>Teacher Name</th>
-                <th class="text-nowrap">Comment ID (NIP)</th>
-                <th>Status</th>
-                <th class="text-nowrap">Active Devices</th>
-                <th>Uptime</th>
-              </tr>
-            </thead>
-            <tbody id="monitoringTableBody">
-              <tr>
-                <td colspan="5" class="text-center text-muted py-4">
-                  <i class="bi bi-arrow-clockwise spin"></i> Memuat data monitoring...
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <ul class="nav nav-tabs mb-3" id="monitoringTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-1" data-bs-toggle="tab" data-bs-target="#pane-1" type="button" role="tab" aria-controls="pane-1" aria-selected="true" data-page="1">
+              Tab 1
+            </button>
+          </li>
+        </ul>
+        <div class="tab-content" id="monitoringTabContent">
+          <div class="tab-pane fade show active" id="pane-1" role="tabpanel" aria-labelledby="tab-1">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead>
+                  <tr>
+                    <th>Teacher Name</th>
+                    <th class="text-nowrap">Comment ID (NIP)</th>
+                    <th>Status</th>
+                    <th class="text-nowrap">Active Devices</th>
+                    <th>Uptime</th>
+                  </tr>
+                </thead>
+                <tbody id="monitoringTableBody-1">
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                      <i class="bi bi-arrow-clockwise spin"></i> Memuat data monitoring...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -313,12 +324,20 @@
           return new bootstrap.Popover(popoverTriggerEl);
         });
 
-        // Load Dashboard Data (Mikrotik) asynchronously
-        function loadDashboardData() {
+        let totalPages = 0;
+        const loadedPages = new Set();
+        const pageDataCache = new Map();
+
+        function loadDashboardData(page = 1) {
+          if (loadedPages.has(page) && pageDataCache.has(page)) {
+            updateMonitoringTable(pageDataCache.get(page), page);
+            return;
+          }
+
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 35000);
 
-          fetch('/admin/api/dashboard-data', { signal: controller.signal })
+          fetch(`/admin/api/dashboard-data?page=${page}&limit=10`, { signal: controller.signal })
             .then(response => {
               clearTimeout(timeoutId);
               if (!response.ok) {
@@ -328,7 +347,14 @@
             })
             .then(data => {
               if (data.success && data.data) {
-                updateDashboardUI(data.data);
+                if (page === 1) {
+                  updateDashboardUI(data.data);
+                  totalPages = data.data.pagination?.totalPages || 0;
+                  createTabs(totalPages);
+                }
+                updateMonitoringTable(data.data, page);
+                loadedPages.add(page);
+                pageDataCache.set(page, data.data);
               } else {
                 showDashboardError(data.message || 'Gagal memuat data');
               }
@@ -344,47 +370,69 @@
             });
         }
 
-        function updateDashboardUI(data) {
-          const routerStatusBadge = document.getElementById('routerStatusBadge');
-          const routerStatusText = document.getElementById('routerStatusText');
-          const routerUptime = document.getElementById('routerUptime');
+        function createTabs(totalPages) {
+          const tabsContainer = document.getElementById('monitoringTabs');
+          const tabContentContainer = document.getElementById('monitoringTabContent');
+          
+          if (!tabsContainer || !tabContentContainer) return;
 
-          if (data.connectionTest && data.connectionTest.success) {
-            routerStatusBadge.className = 'badge bg-success-subtle text-success border border-success-subtle rounded-pill';
-            routerStatusBadge.innerHTML = 'Online';
-            if (data.systemResources) {
-              routerStatusText.textContent = data.systemResources['board-name'] || 'N/A';
-              routerUptime.textContent = data.systemResources.uptime || 'N/A';
-            } else {
-              routerStatusText.textContent = 'Online';
-              routerUptime.textContent = '-';
-            }
-          } else {
-            routerStatusBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill';
-            routerStatusBadge.innerHTML = 'Offline';
-            routerStatusText.textContent = 'Offline';
-            routerUptime.textContent = data.connectionTest?.message || 'Router tidak dapat diakses';
+          tabsContainer.innerHTML = '';
+          tabContentContainer.innerHTML = '';
+
+          for (let i = 1; i <= totalPages; i++) {
+            const tabButton = document.createElement('li');
+            tabButton.className = 'nav-item';
+            tabButton.setAttribute('role', 'presentation');
+            tabButton.innerHTML = `
+              <button class="nav-link ${i === 1 ? 'active' : ''}" id="tab-${i}" data-bs-toggle="tab" data-bs-target="#pane-${i}" type="button" role="tab" aria-controls="pane-${i}" aria-selected="${i === 1}" data-page="${i}">
+                Tab ${i}
+              </button>
+            `;
+            tabsContainer.appendChild(tabButton);
+
+            const tabPane = document.createElement('div');
+            tabPane.className = `tab-pane fade ${i === 1 ? 'show active' : ''}`;
+            tabPane.id = `pane-${i}`;
+            tabPane.setAttribute('role', 'tabpanel');
+            tabPane.setAttribute('aria-labelledby', `tab-${i}`);
+            tabPane.innerHTML = `
+              <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                  <thead>
+                    <tr>
+                      <th>Teacher Name</th>
+                      <th class="text-nowrap">Comment ID (NIP)</th>
+                      <th>Status</th>
+                      <th class="text-nowrap">Active Devices</th>
+                      <th>Uptime</th>
+                    </tr>
+                  </thead>
+                  <tbody id="monitoringTableBody-${i}">
+                    <tr>
+                      <td colspan="5" class="text-center text-muted py-4">
+                        <i class="bi bi-arrow-clockwise spin"></i> Memuat data monitoring...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            `;
+            tabContentContainer.appendChild(tabPane);
+
+            const tabBtn = tabButton.querySelector('button');
+            tabBtn.addEventListener('shown.bs.tab', function(e) {
+              const page = parseInt(e.target.getAttribute('data-page'));
+              loadDashboardData(page);
+            });
           }
+        }
 
-          const totalConnections = document.getElementById('totalConnections');
-          totalConnections.textContent = data.totalActiveConnections || 0;
+        function updateMonitoringTable(data, page) {
+          const tableBody = document.getElementById(`monitoringTableBody-${page}`);
+          if (!tableBody) return;
 
-          const ramUsage = document.getElementById('ramUsage');
-          const ramDetails = document.getElementById('ramDetails');
-          if (data.systemHealth && data.systemHealth.totalMemory > 0) {
-            ramUsage.textContent = data.systemHealth.memoryPercent + '%';
-            ramUsage.className = 'mb-0 mt-1 fw-bold';
-            ramDetails.textContent = Math.round(data.systemHealth.usedMemory / 1024 / 1024) + ' MB / ' + Math.round(data.systemHealth.totalMemory / 1024 / 1024) + ' MB';
-          } else {
-            ramUsage.textContent = '-';
-            ramUsage.className = 'mb-0 mt-1 fw-bold text-muted';
-            ramDetails.textContent = '-';
-          }
-
-          const tableBody = document.getElementById('monitoringTableBody');
           if (data.usersWithSessions && data.usersWithSessions.length > 0) {
-            const displayUsers = data.usersWithSessions.slice(0, 10);
-            tableBody.innerHTML = displayUsers.map(user => {
+            tableBody.innerHTML = data.usersWithSessions.map(user => {
               const statusBadge = user.status === 'online' 
                 ? '<span class="badge bg-success-subtle text-success"><i class="bi bi-circle-fill"></i> Online</span>'
                 : '<span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-circle"></i> Offline</span>';
@@ -427,6 +475,45 @@
           }
         }
 
+        function updateDashboardUI(data) {
+          const routerStatusBadge = document.getElementById('routerStatusBadge');
+          const routerStatusText = document.getElementById('routerStatusText');
+          const routerUptime = document.getElementById('routerUptime');
+
+          if (data.connectionTest && data.connectionTest.success) {
+            routerStatusBadge.className = 'badge bg-success-subtle text-success border border-success-subtle rounded-pill';
+            routerStatusBadge.innerHTML = 'Online';
+            if (data.systemResources) {
+              routerStatusText.textContent = data.systemResources['board-name'] || 'N/A';
+              routerUptime.textContent = data.systemResources.uptime || 'N/A';
+            } else {
+              routerStatusText.textContent = 'Online';
+              routerUptime.textContent = '-';
+            }
+          } else {
+            routerStatusBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill';
+            routerStatusBadge.innerHTML = 'Offline';
+            routerStatusText.textContent = 'Offline';
+            routerUptime.textContent = data.connectionTest?.message || 'Router tidak dapat diakses';
+          }
+
+          const totalConnections = document.getElementById('totalConnections');
+          totalConnections.textContent = data.totalActiveConnections || 0;
+
+          const ramUsage = document.getElementById('ramUsage');
+          const ramDetails = document.getElementById('ramDetails');
+          if (data.systemHealth && data.systemHealth.totalMemory > 0) {
+            ramUsage.textContent = data.systemHealth.memoryPercent + '%';
+            ramUsage.className = 'mb-0 mt-1 fw-bold';
+            ramDetails.textContent = Math.round(data.systemHealth.usedMemory / 1024 / 1024) + ' MB / ' + Math.round(data.systemHealth.totalMemory / 1024 / 1024) + ' MB';
+          } else {
+            ramUsage.textContent = '-';
+            ramUsage.className = 'mb-0 mt-1 fw-bold text-muted';
+            ramDetails.textContent = '-';
+          }
+
+        }
+
         function showDashboardError(message) {
           const routerStatusBadge = document.getElementById('routerStatusBadge');
           const routerStatusText = document.getElementById('routerStatusText');
@@ -434,26 +521,19 @@
           const totalConnections = document.getElementById('totalConnections');
           const ramUsage = document.getElementById('ramUsage');
           const ramDetails = document.getElementById('ramDetails');
-          const tableBody = document.getElementById('monitoringTableBody');
-
-          routerStatusBadge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill';
-          routerStatusBadge.innerHTML = 'Error';
-          routerStatusText.textContent = 'Error';
-          routerUptime.textContent = message;
-          totalConnections.textContent = '-';
-          ramUsage.textContent = '-';
-          ramUsage.className = 'mb-0 mt-1 fw-bold text-muted';
-          ramDetails.textContent = '-';
-          tableBody.innerHTML = `
-            <tr>
-              <td colspan="5" class="text-center text-danger py-4">
-                <i class="bi bi-exclamation-triangle"></i> ${message}
-              </td>
-            </tr>
-          `;
+          const tableBody = document.getElementById('monitoringTableBody-1');
+          if (tableBody) {
+            tableBody.innerHTML = `
+              <tr>
+                <td colspan="5" class="text-center text-danger py-4">
+                  <i class="bi bi-exclamation-triangle"></i> ${message}
+                </td>
+              </tr>
+            `;
+          }
         }
 
-        loadDashboardData();
+        loadDashboardData(1);
         const topUsersLoading = document.getElementById('topUsersLoading');
         const topUsersContent = document.getElementById('topUsersContent');
         const topUsersError = document.getElementById('topUsersError');

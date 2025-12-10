@@ -1795,6 +1795,10 @@ class AdminController {
   static async getDashboardData(req, res) {
     if (res.headersSent) return;
 
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
     const timeout = setTimeout(() => {
       if (!res.headersSent) {
         console.error('[DashboardData] ⚠️  Request timeout after 30 seconds');
@@ -1806,7 +1810,13 @@ class AdminController {
             systemResources: null,
             totalActiveConnections: 0,
             systemHealth: null,
-            usersWithSessions: []
+            usersWithSessions: [],
+            pagination: {
+              page: 1,
+              limit: 10,
+              total: 0,
+              totalPages: 0
+            }
           }
         });
       }
@@ -1973,6 +1983,10 @@ class AdminController {
         return;
       }
 
+      const totalUsers = usersWithSessions.length;
+      const totalPages = Math.ceil(totalUsers / limit);
+      const paginatedUsers = usersWithSessions.slice(skip, skip + limit);
+
       clearTimeout(timeout);
       return res.json({
         success: true,
@@ -1981,7 +1995,13 @@ class AdminController {
           systemResources,
           totalActiveConnections,
           systemHealth,
-          usersWithSessions
+          usersWithSessions: paginatedUsers,
+          pagination: {
+            page,
+            limit,
+            total: totalUsers,
+            totalPages
+          }
         }
       });
     } catch (error) {
@@ -2000,7 +2020,13 @@ class AdminController {
           systemResources: null,
           totalActiveConnections: 0,
           systemHealth: null,
-          usersWithSessions: []
+          usersWithSessions: [],
+          pagination: {
+            page: 1,
+            limit: 10,
+            total: 0,
+            totalPages: 0
+          }
         }
       });
     }
