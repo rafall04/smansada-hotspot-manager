@@ -244,22 +244,13 @@ class AdminController {
 
       if (res.headersSent) return;
 
+      // Router configuration is now ONLY stored in environment variables
+      // Check if user tried to update router config via form
       const { router_ip, router_port, router_user, router_password } = req.body;
-
-      const currentSettings = Settings.get();
-      let routerPasswordEncrypted = currentSettings.router_password_encrypted || '';
-
-      if (router_password && router_password.trim() !== '') {
-        try {
-          routerPasswordEncrypted = cryptoHelper.encrypt(router_password);
-        } catch (encryptError) {
-          console.error('[Settings] Encryption error:', encryptError.message);
-          req.flash('error', 'Gagal mengenkripsi password router');
-          return res.redirect('/admin/settings');
-        }
-      } else if (!routerPasswordEncrypted || routerPasswordEncrypted.trim() === '') {
-        req.flash('error', 'Password harus diisi');
-        return res.redirect('/admin/settings');
+      if (router_ip || router_port || router_user || router_password) {
+        console.warn('[AdminController] ⚠️  User attempted to update router config via web UI');
+        console.warn('[AdminController] 💡 Router config must be set in .env file (ROUTER_IP, ROUTER_USER, ROUTER_PASSWORD_ENCRYPTED)');
+        req.flash('warning', '⚠️ Router configuration tidak dapat diubah via web UI. Silakan edit file .env dan restart aplikasi.');
       }
 
       const schoolName =
@@ -267,22 +258,13 @@ class AdminController {
           ? req.body.school_name.trim()
           : 'SMAN 1 CONTOH';
 
+      // Only update non-router settings
       const updateData = {
-        router_ip,
-        router_port: parseInt(router_port),
-        router_user,
-        router_password_encrypted: routerPasswordEncrypted,
         hotspot_dns_name: req.body.hotspot_dns_name || '',
         telegram_bot_token: req.body.telegram_bot_token || '',
         telegram_chat_id: req.body.telegram_chat_id || '',
         school_name: schoolName
       };
-
-      if (!updateData.router_password_encrypted || updateData.router_password_encrypted.trim() === '') {
-        console.error('[Settings] CRITICAL: router_password_encrypted is empty before save!');
-        req.flash('error', 'Gagal menyimpan: Password router tidak dapat dienkripsi');
-        return res.redirect('/admin/settings');
-      }
       
       try {
         const updateResult = Settings.update(updateData);
@@ -299,12 +281,7 @@ class AdminController {
             return res.redirect('/admin/settings');
           }
           
-          if (verifySettings.router_password_encrypted !== updateData.router_password_encrypted) {
-            console.warn('[Settings] WARNING: Password may not have persisted correctly');
-            req.flash('warning', '⚠️ Peringatan: Password mungkin tidak tersimpan dengan benar. Silakan cek kembali.');
-          } else {
-            console.log('[Settings] ✓ Post-update verification: Password persistence confirmed');
-          }
+          // Router config verification removed - router config is only in env vars
         } catch (verifyError) {
           console.error('[Settings] ⚠️  CRITICAL: Post-update verification failed:', verifyError.message);
           console.error('[Settings] Error code:', verifyError.code);

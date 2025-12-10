@@ -68,7 +68,7 @@ class Settings {
         }
 
         return {
-          ...routerConfigData, // router_ip, router_port, router_user, router_password_encrypted from JSON
+          ...routerConfigData, // router_ip, router_port, router_user, router_password_encrypted from environment variables ONLY
           hotspot_dns_name: result.hotspot_dns_name || '',
           telegram_bot_token: hasTelegram ? (result.telegram_bot_token || '') : '',
           telegram_chat_id: hasTelegram ? (result.telegram_chat_id || '') : '',
@@ -142,20 +142,12 @@ class Settings {
         const columns = db.prepare('PRAGMA table_info(settings)').all();
         const columnNames = columns.map((col) => col.name);
 
+        // Router configuration is now ONLY stored in environment variables
+        // Do not save router config to database
         if (data.router_ip || data.router_port || data.router_user || data.router_password || data.router_password_encrypted) {
-          const routerUpdateData = {
-            router_ip: data.router_ip,
-            router_port: data.router_port,
-            router_user: data.router_user,
-            router_password: data.router_password,
-            router_password_encrypted: data.router_password_encrypted
-          };
-          
-          const routerUpdateSuccess = routerConfigStorage.updateRouterConfig(routerUpdateData);
-          if (!routerUpdateSuccess) {
-            throw new Error('Failed to save router configuration');
-          }
-          console.log('[Settings] Router configuration saved (multi-layer storage)');
+          console.warn('[Settings] ⚠️  Router configuration cannot be saved via Settings.update()');
+          console.warn('[Settings] 💡 Router config must be set in .env file (ROUTER_IP, ROUTER_USER, ROUTER_PASSWORD_ENCRYPTED)');
+          console.warn('[Settings] 💡 Update .env file and restart application to change router configuration');
         }
 
         const fields = [];

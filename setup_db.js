@@ -96,10 +96,6 @@ async function setupDatabase() {
       db.exec(`
         CREATE TABLE settings (
           id INTEGER PRIMARY KEY DEFAULT 1,
-          router_ip TEXT NOT NULL DEFAULT '192.168.88.1',
-          router_port INTEGER NOT NULL DEFAULT 8728,
-          router_user TEXT NOT NULL DEFAULT 'admin',
-          router_password_encrypted TEXT NOT NULL DEFAULT '',
           hotspot_dns_name TEXT,
           telegram_bot_token TEXT,
           telegram_chat_id TEXT,
@@ -107,47 +103,20 @@ async function setupDatabase() {
           CHECK (id = 1)
         )
       `);
-      console.log('✓ Settings table created\n');
+      console.log('✓ Settings table created (router config is now in environment variables only)\n');
     } else {
       const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
       const settingsColumnNames = settingsColumns.map((col) => col.name);
       let schemaUpdated = false;
 
-      // CRITICAL: Ensure router_password_encrypted column exists
-      if (!settingsColumnNames.includes('router_password_encrypted')) {
-        console.log('  Adding router_password_encrypted column...');
-        try {
-          db.exec(
-            'ALTER TABLE settings ADD COLUMN router_password_encrypted TEXT NOT NULL DEFAULT ""'
-          );
-          schemaUpdated = true;
-          console.log('  ✓ router_password_encrypted column added');
-        } catch (error) {
-          console.error('  ❌ Failed to add router_password_encrypted column:', error.message);
-        }
-      }
-
-      // Migration: If old router_password exists but encrypted doesn't, migrate
-      if (
-        settingsColumnNames.includes('router_password') &&
-        !settingsColumnNames.includes('router_password_encrypted')
-      ) {
-        console.log('  Migrating router_password to router_password_encrypted...');
-        try {
-          db.exec(
-            'ALTER TABLE settings ADD COLUMN router_password_encrypted TEXT NOT NULL DEFAULT ""'
-          );
-          schemaUpdated = true;
-          console.log('  ⚠️  Note: Existing router passwords need to be re-entered and encrypted');
-        } catch (error) {
-          console.error('  ❌ Migration failed:', error.message);
-        }
-      }
+      // Note: Router config columns (router_ip, router_port, router_user, router_password_encrypted)
+      // are no longer used. Router config is now ONLY in environment variables.
+      // We don't remove existing columns for backward compatibility, but we don't create new ones.
 
       if (schemaUpdated) {
         console.log('✓ Settings schema updated\n');
       } else {
-        console.log('✓ Settings table already exists\n');
+        console.log('✓ Settings table already exists (router config is now in environment variables only)\n');
       }
     }
 
@@ -321,28 +290,14 @@ async function setupDatabase() {
       const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
       const settingsColumnNames = settingsColumns.map((col) => col.name);
       
-      if (settingsColumnNames.includes('router_password_encrypted')) {
-        db.prepare(
-          `
-          INSERT INTO settings (id, router_ip, router_port, router_user, router_password_encrypted)
-          VALUES (1, '192.168.88.1', 8728, 'admin', '')
+      // Router config is now ONLY in environment variables, not in database
+      // Only insert non-router settings
+      db.prepare(
         `
-        ).run();
-      } else if (settingsColumnNames.includes('router_password')) {
-        db.prepare(
-          `
-          INSERT INTO settings (id, router_ip, router_port, router_user, router_password)
-          VALUES (1, '192.168.88.1', 8728, 'admin', 'admin')
-        `
-        ).run();
-      } else {
-        db.prepare(
-          `
-          INSERT INTO settings (id, router_ip, router_port, router_user)
-          VALUES (1, '192.168.88.1', 8728, 'admin')
-        `
-        ).run();
-      }
+        INSERT INTO settings (id, school_name)
+        VALUES (1, 'SMAN 1 CONTOH')
+      `
+      ).run();
       console.log('✓ Default settings initialized\n');
     } else {
       console.log('✓ Settings already initialized\n');
