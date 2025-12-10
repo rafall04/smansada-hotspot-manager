@@ -76,9 +76,16 @@ function getFromEnv() {
  * 
  * @returns {Object} Router configuration object
  */
+let configLoaded = false;
+
 function getRouterConfig() {
   const envConfig = getFromEnv();
-  console.log('[RouterConfigStorage] ✓ Loaded from environment variables (ONLY SOURCE)');
+  
+  if (!configLoaded) {
+    console.log('[RouterConfigStorage] ✓ Router config loaded from environment variables (ONLY SOURCE)');
+    configLoaded = true;
+  }
+  
   return envConfig;
 }
 
