@@ -1868,12 +1868,28 @@ class AdminController {
 
           console.log(`[DashboardData] Found ${uniqueUsernames.length} unique usernames in active sessions`);
 
-          const userFetchPromises = uniqueUsernames.map(async (username) => {
-            try {
-              const hotspotUser = await Promise.race([
-                MikrotikService.getHotspotUserByUsername(username),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
-              ]);
+          // Batch fetch all hotspot users at once instead of one-by-one (much faster)
+          // This avoids timeout issues when there are many active sessions
+          try {
+            const allHotspotUsers = await Promise.race([
+              MikrotikService.getAllHotspotUsers(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+            ]);
+
+            console.log(`[DashboardData] Fetched ${allHotspotUsers.length} hotspot users from Mikrotik`);
+
+            // Create a Map for quick lookup: username -> user object
+            const hotspotUserMap = new Map();
+            for (const user of allHotspotUsers) {
+              if (user.name) {
+                hotspotUserMap.set(String(user.name), user);
+              }
+            }
+
+            // Build usernameToCommentMap from batch data
+            for (const username of uniqueUsernames) {
+              const hotspotUser = hotspotUserMap.get(username);
+              
               if (hotspotUser) {
                 // Explicitly convert comment to string - Mikrotik API might return different types
                 let comment = hotspotUser.comment;
@@ -1881,7 +1897,7 @@ class AdminController {
                 // Handle null/undefined
                 if (comment === null || comment === undefined) {
                   console.warn(`[DashboardData] Username "${username}" has null/undefined comment in Mikrotik`);
-                  return;
+                  continue;
                 }
                 
                 // Convert to string explicitly (handles Buffer, number, etc.)
@@ -1896,23 +1912,24 @@ class AdminController {
                     original: originalComment,
                     normalized: normalizedComment
                   });
-                  console.log(`[DashboardData] Mapped username "${username}" -> comment "${originalComment}" (normalized: "${normalizedComment}")`);
                 } else {
                   console.warn(`[DashboardData] Skipping username "${username}" - empty normalized comment (original: "${originalComment}")`);
                 }
               } else {
-                console.warn(`[DashboardData] Username "${username}" not found in Mikrotik`);
-              }
-            } catch (error) {
-              if (error.message !== 'Timeout') {
-                console.error(`[DashboardData] Error fetching user ${username}:`, error.message);
-              } else {
-                console.warn(`[DashboardData] Timeout fetching user ${username}`);
+                // Only log if it's not a MAC-based username (T-XX:XX:XX format)
+                if (!username.startsWith('T-')) {
+                  console.warn(`[DashboardData] Username "${username}" not found in Mikrotik hotspot users`);
+                }
               }
             }
-          });
-
-          await Promise.allSettled(userFetchPromises);
+          } catch (error) {
+            if (error.message === 'Timeout') {
+              console.error(`[DashboardData] Timeout fetching all hotspot users (10s limit)`);
+            } else {
+              console.error(`[DashboardData] Error fetching all hotspot users:`, error.message);
+            }
+            // Continue with empty map - users will show as offline
+          }
 
           console.log(`[DashboardData] Built usernameToCommentMap with ${usernameToCommentMap.size} entries`);
 
