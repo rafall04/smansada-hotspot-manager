@@ -122,6 +122,12 @@ class AuthController {
       req.session.username = user.username;
       req.session.role = user.role;
 
+      // Clear mustChangePassword flag if user has already changed password
+      // This prevents issues with stale session data
+      if (user.must_change_password === 0) {
+        req.session.mustChangePassword = false;
+      }
+
       req.session.save((err) => {
         if (err) {
           console.error('[Login] Session save error:', err.message);
@@ -140,6 +146,8 @@ class AuthController {
         return res.redirect('/admin/dashboard');
       }
 
+      // Only redirect to password change if must_change_password is still 1 in database
+      // This ensures password change is only required ONCE, not every login
       if (user.must_change_password === 1) {
         req.session.mustChangePassword = true;
         return res.redirect('/guru/initial-password-change');

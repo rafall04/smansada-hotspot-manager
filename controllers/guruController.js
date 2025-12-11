@@ -476,6 +476,8 @@ class GuruController {
       const cryptoHelper = require('../utils/cryptoHelper');
       const passwordEncrypted = cryptoHelper.encrypt(password);
 
+      // Update password in database ONLY (NOT in Mikrotik)
+      // Password change is only for web application access, not for Mikrotik hotspot
       User.update(user.id, {
         password_hash: passwordHash,
         password_plain: password,
@@ -483,25 +485,24 @@ class GuruController {
         must_change_password: 0
       });
 
-      if (user.mikrotik_comment_id) {
-        try {
-          const hotspotUser = await MikrotikService.getHotspotUserByComment(user.mikrotik_comment_id);
-          if (hotspotUser) {
-            await MikrotikService.updateHotspotUser(
-              hotspotUser['.id'],
-              hotspotUser.name,
-              password,
-              user.mikrotik_comment_id
-            );
-
-            await MikrotikService.kickActiveUser(hotspotUser.name);
-          }
-        } catch (mtError) {
-          console.error('Failed to sync password to Mikrotik:', mtError);
-        }
+      // Verify the update was successful by re-fetching the user
+      const updatedUser = User.findById(user.id);
+      if (updatedUser && updatedUser.must_change_password === 0) {
+        // Successfully updated - clear session flag
+        req.session.mustChangePassword = false;
+        console.log(`[UpdateInitialPassword] Password changed successfully for user ${user.id} (${user.username}), must_change_password reset to 0`);
+      } else {
+        // Update failed - log error but don't block user
+        console.error('[UpdateInitialPassword] Warning: must_change_password was not reset properly');
+        req.session.mustChangePassword = false; // Clear session flag anyway to prevent loop
       }
 
-      req.session.mustChangePassword = false;
+      // Save session to ensure mustChangePassword flag is persisted
+      req.session.save((err) => {
+        if (err) {
+          console.error('[UpdateInitialPassword] Session save error:', err.message);
+        }
+      });
 
       if (res.headersSent) return;
       return res.redirect('/guru/dashboard?success=' + encodeURIComponent('Password berhasil diubah. Selamat datang!'));
