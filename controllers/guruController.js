@@ -487,13 +487,29 @@ class GuruController {
 
       // Verify the update was successful by re-fetching the user
       const updatedUser = User.findById(user.id);
-      if (updatedUser && updatedUser.must_change_password === 0) {
+      
+      // Log for debugging
+      console.log(`[UpdateInitialPassword] User ${user.id} (${user.username}) - Before update: must_change_password = ${user.must_change_password}`);
+      console.log(`[UpdateInitialPassword] User ${user.id} (${user.username}) - After update: must_change_password = ${updatedUser ? updatedUser.must_change_password : 'null'}`);
+      console.log(`[UpdateInitialPassword] User ${user.id} (${user.username}) - Type check: ${updatedUser ? typeof updatedUser.must_change_password : 'null'}`);
+      
+      // Check if update was successful (handle both integer 0 and boolean false)
+      const isPasswordChangeComplete = updatedUser && (
+        updatedUser.must_change_password === 0 || 
+        updatedUser.must_change_password === false ||
+        updatedUser.must_change_password === '0'
+      );
+      
+      if (isPasswordChangeComplete) {
         // Successfully updated - clear session flag
         req.session.mustChangePassword = false;
-        console.log(`[UpdateInitialPassword] Password changed successfully for user ${user.id} (${user.username}), must_change_password reset to 0`);
+        console.log(`[UpdateInitialPassword] ✓ Password changed successfully for user ${user.id} (${user.username}), must_change_password reset to 0`);
       } else {
-        // Update failed - log error but don't block user
-        console.error('[UpdateInitialPassword] Warning: must_change_password was not reset properly');
+        // Update failed - log error with details
+        console.error(`[UpdateInitialPassword] ✗ Warning: must_change_password was not reset properly`);
+        console.error(`[UpdateInitialPassword]   User ID: ${user.id}, Username: ${user.username}`);
+        console.error(`[UpdateInitialPassword]   Updated user exists: ${!!updatedUser}`);
+        console.error(`[UpdateInitialPassword]   must_change_password value: ${updatedUser ? updatedUser.must_change_password : 'N/A'}, type: ${updatedUser ? typeof updatedUser.must_change_password : 'N/A'}`);
         req.session.mustChangePassword = false; // Clear session flag anyway to prevent loop
       }
 

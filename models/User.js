@@ -133,6 +133,12 @@ class User {
       fields.push('role = ?');
       values.push(data.role);
     }
+    if (data.must_change_password !== undefined && columnNames.includes('must_change_password')) {
+      // Handle must_change_password as integer (0 or 1)
+      const value = data.must_change_password === true || data.must_change_password === 1 ? 1 : 0;
+      fields.push('must_change_password = ?');
+      values.push(value);
+    }
 
     const commentValue = data.mikrotik_comment_id || data.mikrotik_comment;
     if (commentValue !== undefined) {
