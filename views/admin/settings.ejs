@@ -40,13 +40,13 @@
                         </a>
                     </li>
                 </ul>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="navbar-text">
-                        <i class="bi bi-person-circle"></i> <%= session.username %>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="navbar-text text-truncate" style="max-width: 150px;" title="<%= session.username %>">
+                        <i class="bi bi-person-circle"></i> <span class="d-none d-md-inline"><%= session.username %></span>
                     </span>
                     <form method="POST" action="/logout" class="d-inline">
                         <button type="submit" class="btn btn-outline-secondary btn-sm">
-                            <i class="bi bi-box-arrow-right"></i> Logout
+                            <i class="bi bi-box-arrow-right"></i> <span class="d-none d-md-inline">Logout</span>
                         </button>
                     </form>
                 </div>
