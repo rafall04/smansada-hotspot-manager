@@ -270,6 +270,54 @@ class MikrotikService {
     }
   }
 
+  static async getDetailedActiveSessionsForUser(hotspotUsername) {
+    try {
+      const conn = this.createConnection();
+      await this.connectWithTimeout(conn);
+
+      // Get active sessions for specific user
+      const activeSessions = await conn.write('/ip/hotspot/active/print', [
+        '?user=' + hotspotUsername
+      ]);
+
+      // Get DHCP leases for hostname mapping (only once, not per session)
+      const dhcpLeases = await conn.write('/ip/dhcp-server/lease/print');
+
+      conn.close();
+
+      // Build IP to hostname mapping
+      const ipToHostnameMap = new Map();
+      if (dhcpLeases && Array.isArray(dhcpLeases)) {
+        for (const lease of dhcpLeases) {
+          const ip = lease.address;
+          const hostname = lease['host-name'] || lease['hostname'] || null;
+          if (ip && hostname) {
+            ipToHostnameMap.set(ip, hostname);
+          }
+        }
+      }
+
+      // Map sessions with hostname
+      const detailedSessions = [];
+      if (activeSessions && Array.isArray(activeSessions)) {
+        for (const session of activeSessions) {
+          const ip = session.address || session['ip-address'] || null;
+          const hostname = ip ? (ipToHostnameMap.get(ip) || null) : null;
+
+          detailedSessions.push({
+            ...session,
+            hostname: hostname || null
+          });
+        }
+      }
+
+      return detailedSessions;
+    } catch (error) {
+      console.error('Error getting detailed active sessions for user:', error);
+      return [];
+    }
+  }
+
   static async getDeviceQuota(hotspotUsername) {
     try {
       const conn = this.createConnection();

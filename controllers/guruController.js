@@ -576,7 +576,8 @@ class GuruController {
         hotspotUser = await MikrotikService.getHotspotUserByComment(user.mikrotik_comment_id);
 
         if (hotspotUser) {
-          activeSessions = await MikrotikService.getAllActiveSessions(hotspotUser.name);
+          // Use detailed sessions with hostname (more efficient - single API call with hostname mapping)
+          activeSessions = await MikrotikService.getDetailedActiveSessionsForUser(hotspotUser.name);
 
           activeSessions = activeSessions.map((session) => ({
             ...session,
