@@ -1849,6 +1849,15 @@ class AdminController {
           const sessionMap = new Map();
           const usernameToCommentMap = new Map();
 
+          // Helper function to normalize comment ID for case-insensitive comparison
+          // Handles case differences and whitespace (Linux is case-sensitive, Windows is not)
+          const normalizeCommentId = (comment) => {
+            if (!comment || typeof comment !== 'string') return '';
+            // Trim whitespace and convert to lowercase for case-insensitive comparison
+            // This ensures "NIP123", "nip123", "NIP 123" all match correctly on Linux
+            return comment.trim().toLowerCase();
+          };
+
           const uniqueUsernames = [
             ...new Set(allActiveSessions.map((s) => s.user).filter(Boolean))
           ].slice(0, 50);
@@ -1860,7 +1869,12 @@ class AdminController {
                 new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
               ]);
               if (hotspotUser && hotspotUser.comment) {
-                usernameToCommentMap.set(username, hotspotUser.comment);
+                // Store both original and normalized for lookup
+                const normalizedComment = normalizeCommentId(hotspotUser.comment);
+                usernameToCommentMap.set(username, {
+                  original: hotspotUser.comment.trim(),
+                  normalized: normalizedComment
+                });
               }
             } catch (error) {
               if (error.message !== 'Timeout') {
@@ -1877,20 +1891,23 @@ class AdminController {
               continue;
             }
 
-            const commentId = usernameToCommentMap.get(username);
-            if (!commentId) {
+            const commentData = usernameToCommentMap.get(username);
+            if (!commentData || !commentData.normalized) {
               continue;
             }
+
+            // Use normalized comment ID as key for case-insensitive matching
+            const normalizedCommentId = commentData.normalized;
 
             if (sessionMap.size >= 100) {
               break;
             }
 
-            if (!sessionMap.has(commentId)) {
-              sessionMap.set(commentId, []);
+            if (!sessionMap.has(normalizedCommentId)) {
+              sessionMap.set(normalizedCommentId, []);
             }
 
-            sessionMap.get(commentId).push({
+            sessionMap.get(normalizedCommentId).push({
               ip: session['address'] || 'N/A',
               mac: session['mac-address'] || 'N/A',
               uptime: session.uptime || '0s',
@@ -1901,7 +1918,9 @@ class AdminController {
           usersWithSessions = allUsers.map((user) => {
             try {
               const commentId = user.mikrotik_comment_id;
-              const sessions = sessionMap.get(commentId) || [];
+              // Normalize database comment ID for case-insensitive matching
+              const normalizedCommentId = normalizeCommentId(commentId);
+              const sessions = sessionMap.get(normalizedCommentId) || [];
 
               let longestUptime = '0s';
               if (sessions.length > 0) {
