@@ -562,13 +562,24 @@ class GuruController {
             hotspotUser: null,
             activeSessions: [],
             deviceQuota: null,
-            hotspotLoginUrl: null
+            hotspotLoginUrl: null,
+            pagination: {
+              page: 1,
+              limit: 10,
+              total: 0,
+              totalPages: 0
+            }
           }
         });
       }
 
+      // Get pagination parameters
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const skip = (page - 1) * limit;
+
       let hotspotUser = null;
-      let activeSessions = [];
+      let allActiveSessions = [];
       let deviceQuota = null;
       let error = null;
 
@@ -577,9 +588,10 @@ class GuruController {
 
         if (hotspotUser) {
           // Use detailed sessions with hostname (more efficient - single API call with hostname mapping)
-          activeSessions = await MikrotikService.getDetailedActiveSessionsForUser(hotspotUser.name);
+          allActiveSessions = await MikrotikService.getDetailedActiveSessionsForUser(hotspotUser.name);
 
-          activeSessions = activeSessions.map((session) => ({
+          // Format sessions
+          allActiveSessions = allActiveSessions.map((session) => ({
             ...session,
             'bytes-in-formatted': formatBytes(session['bytes-in'] || '0'),
             'bytes-out-formatted': formatBytes(session['bytes-out'] || '0')
@@ -593,6 +605,11 @@ class GuruController {
         console.error('[GuruDashboardData] Mikrotik error:', mikrotikError);
         error = 'Gagal terhubung ke Mikrotik: ' + mikrotikError.message;
       }
+
+      // Paginate active sessions
+      const totalSessions = allActiveSessions.length;
+      const totalPages = Math.ceil(totalSessions / limit);
+      const paginatedSessions = allActiveSessions.slice(skip, skip + limit);
 
       const settings = Settings.get();
       const hotspotDnsName = settings.hotspot_dns_name || settings.router_ip || '192.168.88.1';
@@ -609,10 +626,17 @@ class GuruController {
         success: true,
         data: {
           hotspotUser,
-          activeSessions,
+          activeSessions: paginatedSessions,
+          allActiveSessionsCount: totalSessions, // Total count for badge
           hotspotLoginUrl,
           deviceQuota,
-          error
+          error,
+          pagination: {
+            page,
+            limit,
+            total: totalSessions,
+            totalPages
+          }
         }
       });
     } catch (error) {

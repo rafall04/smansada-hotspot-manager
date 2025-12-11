@@ -111,8 +111,21 @@
                         </span>
                     </div>
                     <div class="card-body" id="activeSessionsContent">
-                        <div class="text-center py-4">
-                            <i class="bi bi-arrow-clockwise spin"></i> Memuat data sesi aktif...
+                        <div id="sessionsTabsContainer" style="display: none;">
+                            <ul class="nav nav-tabs mb-3" id="sessionsTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="session-tab-1" data-bs-toggle="tab" data-bs-target="#session-pane-1" type="button" role="tab" aria-controls="session-pane-1" aria-selected="true" data-page="1">
+                                        Tab 1
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="tab-content" id="sessionsTabContent">
+                            <div class="tab-pane fade show active" id="session-pane-1" role="tabpanel" aria-labelledby="session-tab-1">
+                                <div class="text-center py-4">
+                                    <i class="bi bi-arrow-clockwise spin"></i> Memuat data sesi aktif...
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -367,8 +380,8 @@
 
             document.addEventListener('DOMContentLoaded', function() {
                 // Load Dashboard Data (Mikrotik) asynchronously
-                function loadDashboardData() {
-                    fetch('/guru/api/dashboard-data')
+                function loadDashboardData(page = 1) {
+                    fetch(`/guru/api/dashboard-data?page=${page}&limit=10`)
                         .then(response => response.json())
                         .then(data => {
                             if (data.success && data.data) {
@@ -539,82 +552,231 @@
                         return div.innerHTML;
                     }
 
+                    // Sessions pagination state
+                    let sessionsTotalPages = 0;
+                    const sessionsLoadedPages = new Set();
+                    const sessionsPageDataCache = new Map();
+
                     const activeSessionsContent = document.getElementById('activeSessionsContent');
                     const sessionCountBadge = document.getElementById('sessionCountBadge');
+                    const sessionsTabsContainer = document.getElementById('sessionsTabsContainer');
+                    const sessionsTabs = document.getElementById('sessionsTabs');
+                    const sessionsTabContent = document.getElementById('sessionsTabContent');
                     
-                    if (data.activeSessions && data.activeSessions.length > 0) {
+                    // Update badge with total count (not paginated count)
+                    const totalSessions = data.allActiveSessionsCount || (data.activeSessions ? data.activeSessions.length : 0);
+                    
+                    if (totalSessions > 0) {
                         sessionCountBadge.style.display = 'block';
-                        sessionCountBadge.textContent = `${data.activeSessions.length} Device`;
+                        sessionCountBadge.textContent = `${totalSessions} Device${totalSessions > 1 ? 's' : ''}`;
                         
-                        let sessionsHtml = `
-                            <div class="mb-3">
-                                <span class="badge bg-success-subtle text-success">
-                                    <i class="bi bi-check-circle-fill"></i> Terhubung (${data.activeSessions.length} device)
-                                </span>
-                            </div>
-                            
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover align-middle">
-                                    <thead>
-                                        <tr>
-                                            <th>Device</th>
-                                            <th class="text-nowrap">IP Address</th>
-                                            <th>Hostname</th>
-                                            <th class="text-nowrap">MAC Address</th>
-                                            <th class="text-nowrap">Uptime</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                        `;
+                        // Get pagination info
+                        sessionsTotalPages = data.pagination?.totalPages || 1;
                         
-                        data.activeSessions.forEach((session, index) => {
-                            const hostname = session.hostname && session.hostname !== 'N/A' && session.hostname !== null
-                                ? `<span class="badge bg-info-subtle text-info">
-                                     <i class="bi bi-laptop"></i> ${escapeHtml(session.hostname)}
-                                   </span>`
-                                : '<span class="text-muted">-</span>';
-                            
-                            sessionsHtml += `
-                                <tr>
-                                    <td>
-                                        <i class="bi bi-device-hdd"></i> Device ${index + 1}
-                                    </td>
-                                    <td class="text-nowrap"><code>${session.address || 'N/A'}</code></td>
-                                    <td>${hostname}</td>
-                                    <td class="text-nowrap"><code>${session['mac-address'] || 'N/A'}</code></td>
-                                    <td class="text-nowrap">${session.uptime || 'N/A'}</td>
-                                    <td>
-                                        <button class="btn btn-outline-danger btn-sm kick-session-btn" 
-                                                data-session-id="${session['.id']}"
-                                                title="Kick this device">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
+                        // Show tabs if more than 10 devices (more than 1 page)
+                        if (sessionsTotalPages > 1) {
+                            sessionsTabsContainer.style.display = 'block';
+                            createSessionsTabs(sessionsTotalPages);
+                        } else {
+                            // Single page - no tabs needed, show table directly
+                            sessionsTabsContainer.style.display = 'none';
+                            // Create single tab pane structure
+                            sessionsTabContent.innerHTML = `
+                                <div class="tab-pane fade show active" id="session-pane-1" role="tabpanel">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover align-middle">
+                                            <thead>
+                                                <tr>
+                                                    <th>Device</th>
+                                                    <th class="text-nowrap">IP Address</th>
+                                                    <th>Hostname</th>
+                                                    <th class="text-nowrap">MAC Address</th>
+                                                    <th class="text-nowrap">Uptime</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="sessionsTableBody-1">
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             `;
-                        });
+                        }
                         
-                        sessionsHtml += `
-                                    </tbody>
-                                </table>
-                            </div>
-                        `;
+                        // Load first page data
+                        updateSessionsTable(data, 1);
                         
-                        activeSessionsContent.innerHTML = sessionsHtml;
+                        // Cache first page
+                        sessionsLoadedPages.add(1);
+                        sessionsPageDataCache.set(1, data);
                         
                         // Re-attach kick session event listeners
                         attachKickSessionListeners();
                     } else {
                         sessionCountBadge.style.display = 'none';
-                        activeSessionsContent.innerHTML = `
-                            <div class="text-center py-4">
-                                <span class="badge bg-secondary-subtle text-secondary mb-3">
-                                    <i class="bi bi-x-circle"></i> Tidak Terhubung
-                                </span>
-                                <p class="text-muted mb-0">Tidak ada koneksi aktif saat ini.</p>
+                        sessionsTabsContainer.style.display = 'none';
+                        sessionsTabContent.innerHTML = `
+                            <div class="tab-pane fade show active" id="session-pane-1" role="tabpanel">
+                                <div class="text-center py-4">
+                                    <span class="badge bg-secondary-subtle text-secondary mb-3">
+                                        <i class="bi bi-x-circle"></i> Tidak Terhubung
+                                    </span>
+                                    <p class="text-muted mb-0">Tidak ada koneksi aktif saat ini.</p>
+                                </div>
                             </div>
                         `;
+                    }
+
+                    function createSessionsTabs(totalPages) {
+                        if (!sessionsTabs || !sessionsTabContent) return;
+
+                        sessionsTabs.innerHTML = '';
+                        sessionsTabContent.innerHTML = '';
+
+                        for (let i = 1; i <= totalPages; i++) {
+                            const tabButton = document.createElement('li');
+                            tabButton.className = 'nav-item';
+                            tabButton.setAttribute('role', 'presentation');
+                            tabButton.innerHTML = `
+                                <button class="nav-link ${i === 1 ? 'active' : ''}" id="session-tab-${i}" data-bs-toggle="tab" data-bs-target="#session-pane-${i}" type="button" role="tab" aria-controls="session-pane-${i}" aria-selected="${i === 1}" data-page="${i}">
+                                    Tab ${i}
+                                </button>
+                            `;
+                            sessionsTabs.appendChild(tabButton);
+
+                            const tabPane = document.createElement('div');
+                            tabPane.className = `tab-pane fade ${i === 1 ? 'show active' : ''}`;
+                            tabPane.id = `session-pane-${i}`;
+                            tabPane.setAttribute('role', 'tabpanel');
+                            tabPane.setAttribute('aria-labelledby', `session-tab-${i}`);
+                            tabPane.innerHTML = `
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Device</th>
+                                                <th class="text-nowrap">IP Address</th>
+                                                <th>Hostname</th>
+                                                <th class="text-nowrap">MAC Address</th>
+                                                <th class="text-nowrap">Uptime</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="sessionsTableBody-${i}">
+                                            <tr>
+                                                <td colspan="6" class="text-center text-muted py-4">
+                                                    <i class="bi bi-arrow-clockwise spin"></i> Memuat data sesi aktif...
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `;
+                            sessionsTabContent.appendChild(tabPane);
+
+                            const tabBtn = tabButton.querySelector('button');
+                            tabBtn.addEventListener('shown.bs.tab', function(e) {
+                                const page = parseInt(e.target.getAttribute('data-page'));
+                                loadSessionsData(page);
+                            });
+                        }
+                    }
+
+                    function loadSessionsData(page = 1) {
+                        // Use cached data if available
+                        if (sessionsLoadedPages.has(page) && sessionsPageDataCache.has(page)) {
+                            updateSessionsTable(sessionsPageDataCache.get(page), page);
+                            return;
+                        }
+
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                        fetch(`/guru/api/dashboard-data?page=${page}&limit=10`, { signal: controller.signal })
+                            .then(response => {
+                                clearTimeout(timeoutId);
+                                if (!response.ok) {
+                                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                if (data.success && data.data) {
+                                    updateSessionsTable(data.data, page);
+                                    sessionsLoadedPages.add(page);
+                                    sessionsPageDataCache.set(page, data.data);
+                                } else {
+                                    showSessionsError(data.message || 'Gagal memuat data sesi aktif');
+                                }
+                            })
+                            .catch(error => {
+                                clearTimeout(timeoutId);
+                                console.error('Error loading sessions data:', error);
+                                if (error.name === 'AbortError') {
+                                    showSessionsError('Request timeout - Koneksi ke router mungkin lambat');
+                                } else {
+                                    showSessionsError('Gagal memuat data sesi aktif: ' + error.message);
+                                }
+                            });
+                    }
+
+                    function updateSessionsTable(data, page) {
+                        const tableBody = document.getElementById(`sessionsTableBody-${page}`);
+                        if (!tableBody) return;
+
+                        if (data.activeSessions && data.activeSessions.length > 0) {
+                            tableBody.innerHTML = data.activeSessions.map((session, index) => {
+                                const globalIndex = (page - 1) * 10 + index + 1;
+                                const hostname = session.hostname && session.hostname !== 'N/A' && session.hostname !== null
+                                    ? `<span class="badge bg-info-subtle text-info">
+                                         <i class="bi bi-laptop"></i> ${escapeHtml(session.hostname)}
+                                       </span>`
+                                    : '<span class="text-muted">-</span>';
+                                
+                                return `
+                                    <tr>
+                                        <td>
+                                            <i class="bi bi-device-hdd"></i> Device ${globalIndex}
+                                        </td>
+                                        <td class="text-nowrap"><code>${session.address || 'N/A'}</code></td>
+                                        <td>${hostname}</td>
+                                        <td class="text-nowrap"><code>${session['mac-address'] || 'N/A'}</code></td>
+                                        <td class="text-nowrap">${session.uptime || 'N/A'}</td>
+                                        <td>
+                                            <button class="btn btn-outline-danger btn-sm kick-session-btn" 
+                                                    data-session-id="${session['.id']}"
+                                                    title="Kick this device">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('');
+                            
+                            // Re-attach kick session event listeners after updating table
+                            attachKickSessionListeners();
+                        } else {
+                            tableBody.innerHTML = `
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox"></i> Tidak ada data sesi aktif
+                                    </td>
+                                </tr>
+                            `;
+                        }
+                    }
+
+                    function showSessionsError(message) {
+                        const firstTableBody = document.getElementById('sessionsTableBody-1');
+                        if (firstTableBody) {
+                            firstTableBody.innerHTML = `
+                                <tr>
+                                    <td colspan="6" class="text-center text-danger py-4">
+                                        <i class="bi bi-exclamation-triangle"></i> ${message}
+                                    </td>
+                                </tr>
+                            `;
+                        }
                     }
                 }
 
