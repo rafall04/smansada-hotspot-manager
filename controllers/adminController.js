@@ -1846,120 +1846,56 @@ class AdminController {
           systemResources = systemResourcesResult.status === 'fulfilled' ? systemResourcesResult.value : null;
           allActiveSessions = sessionsResult.status === 'fulfilled' ? sessionsResult.value : [];
 
-          const sessionMap = new Map();
-          const usernameToCommentMap = new Map();
-
           // Helper function to normalize comment ID for case-insensitive comparison
-          // Handles case differences, whitespace, and null/undefined (Linux is case-sensitive, Windows is not)
           const normalizeCommentId = (comment) => {
             if (!comment) return '';
             if (typeof comment !== 'string') {
-              // Handle non-string values (numbers, objects, etc.)
               return String(comment).trim().toLowerCase();
             }
-            // Trim whitespace and convert to lowercase for case-insensitive comparison
-            // This ensures "NIP123", "nip123", "NIP 123" all match correctly on Linux
             return comment.trim().toLowerCase();
           };
 
-          const uniqueUsernames = [
-            ...new Set(allActiveSessions.map((s) => s.user).filter(Boolean))
-          ].slice(0, 50);
-
-          console.log(`[DashboardData] Found ${uniqueUsernames.length} unique usernames in active sessions`);
-
-          // Batch fetch all hotspot users at once instead of one-by-one (much faster)
-          // This avoids timeout issues when there are many active sessions
+          // Simplified and efficient approach:
+          // Step 1: Fetch all hotspot users once (batch) and build username -> comment mapping
+          const usernameToCommentMap = new Map(); // username -> normalized comment
+          
           try {
             const allHotspotUsers = await Promise.race([
               MikrotikService.getAllHotspotUsers(),
               new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
             ]);
 
-            console.log(`[DashboardData] Fetched ${allHotspotUsers.length} hotspot users from Mikrotik`);
-
-            // Create a Map for quick lookup: username -> user object
-            const hotspotUserMap = new Map();
+            // Build mapping: username -> normalized comment
             for (const user of allHotspotUsers) {
-              if (user.name) {
-                hotspotUserMap.set(String(user.name), user);
-              }
-            }
-
-            // Build usernameToCommentMap from batch data
-            for (const username of uniqueUsernames) {
-              const hotspotUser = hotspotUserMap.get(username);
+              if (!user.name || !user.comment) continue;
               
-              if (hotspotUser) {
-                // Explicitly convert comment to string - Mikrotik API might return different types
-                let comment = hotspotUser.comment;
-                
-                // Handle null/undefined
-                if (comment === null || comment === undefined) {
-                  console.warn(`[DashboardData] Username "${username}" has null/undefined comment in Mikrotik`);
-                  continue;
-                }
-                
-                // Convert to string explicitly (handles Buffer, number, etc.)
-                comment = String(comment);
-                
-                // Store both original and normalized for lookup
-                const originalComment = comment.trim();
-                const normalizedComment = normalizeCommentId(originalComment);
-                
-                if (normalizedComment) {
-                  usernameToCommentMap.set(username, {
-                    original: originalComment,
-                    normalized: normalizedComment
-                  });
-                } else {
-                  console.warn(`[DashboardData] Skipping username "${username}" - empty normalized comment (original: "${originalComment}")`);
-                }
-              } else {
-                // Only log if it's not a MAC-based username (T-XX:XX:XX format)
-                if (!username.startsWith('T-')) {
-                  console.warn(`[DashboardData] Username "${username}" not found in Mikrotik hotspot users`);
-                }
+              const username = String(user.name);
+              const comment = String(user.comment).trim();
+              const normalizedComment = normalizeCommentId(comment);
+              
+              if (normalizedComment) {
+                usernameToCommentMap.set(username, normalizedComment);
               }
             }
           } catch (error) {
-            if (error.message === 'Timeout') {
-              console.error(`[DashboardData] Timeout fetching all hotspot users (10s limit)`);
-            } else {
-              console.error(`[DashboardData] Error fetching all hotspot users:`, error.message);
-            }
-            // Continue with empty map - users will show as offline
+            console.error(`[DashboardData] Error fetching hotspot users:`, error.message);
           }
 
-          console.log(`[DashboardData] Built usernameToCommentMap with ${usernameToCommentMap.size} entries`);
-
+          // Step 2: Group active sessions by normalized comment ID
+          const sessionMap = new Map(); // normalized comment -> [sessions]
+          
           for (const session of allActiveSessions) {
             const username = session.user || '';
-            if (!username) {
-              continue;
+            if (!username) continue;
+
+            const normalizedComment = usernameToCommentMap.get(username);
+            if (!normalizedComment) continue;
+
+            if (!sessionMap.has(normalizedComment)) {
+              sessionMap.set(normalizedComment, []);
             }
 
-            const commentData = usernameToCommentMap.get(username);
-            if (!commentData || !commentData.normalized) {
-              // Log missing mappings for debugging
-              if (usernameToCommentMap.size > 0) {
-                console.warn(`[DashboardData] No comment mapping found for username "${username}"`);
-              }
-              continue;
-            }
-
-            // Use normalized comment ID as key for case-insensitive matching
-            const normalizedCommentId = commentData.normalized;
-
-            if (sessionMap.size >= 100) {
-              break;
-            }
-
-            if (!sessionMap.has(normalizedCommentId)) {
-              sessionMap.set(normalizedCommentId, []);
-            }
-
-            sessionMap.get(normalizedCommentId).push({
+            sessionMap.get(normalizedComment).push({
               ip: session['address'] || 'N/A',
               mac: session['mac-address'] || 'N/A',
               uptime: session.uptime || '0s',
@@ -1967,17 +1903,15 @@ class AdminController {
             });
           }
 
-          console.log(`[DashboardData] Built sessionMap with ${sessionMap.size} comment IDs`);
-          console.log(`[DashboardData] SessionMap keys:`, Array.from(sessionMap.keys()));
+          console.log(`[DashboardData] Mapped ${usernameToCommentMap.size} usernames to comments, ${sessionMap.size} comments have active sessions`);
 
+          // Step 3: Match database users with sessions (simplified and efficient)
           usersWithSessions = allUsers.map((user) => {
             try {
-              // Explicitly convert to string - SQLite might return different types on Linux vs Windows
               let commentId = user.mikrotik_comment_id;
               
-              // Handle null/undefined comment IDs
-              if (commentId === null || commentId === undefined) {
-                console.warn(`[DashboardData] User ${user.id} (${user.username}) has no mikrotik_comment_id`);
+              // Handle null/undefined
+              if (!commentId) {
                 return {
                   id: user.id,
                   username: user.username,
@@ -1989,49 +1923,26 @@ class AdminController {
                 };
               }
               
-              // Convert to string explicitly (handles Buffer, number, etc. that might differ between platforms)
+              // Normalize for matching
               commentId = String(commentId);
-              
-              // Normalize database comment ID for case-insensitive matching
               const normalizedCommentId = normalizeCommentId(commentId);
-              
-              // Debug: Log the exact values being compared
-              const sessionMapKeys = Array.from(sessionMap.keys());
-              const hasMatch = sessionMap.has(normalizedCommentId);
-              
-              const sessions = hasMatch ? sessionMap.get(normalizedCommentId) : [];
-              
-              if (sessions.length > 0) {
-                console.log(`[DashboardData] ✓ User ${user.id} (${user.username}) - commentId: "${commentId}" (normalized: "${normalizedCommentId}") - FOUND ${sessions.length} sessions`);
-              } else {
-                // Only log if we have sessions in the map (to avoid spam)
-                if (sessionMap.size > 0) {
-                  console.warn(`[DashboardData] ✗ User ${user.id} (${user.username}) - commentId: "${commentId}" (normalized: "${normalizedCommentId}") - NO MATCH`);
-                  console.warn(`[DashboardData]   Available keys in sessionMap: [${sessionMapKeys.map(k => `"${k}"`).join(', ')}]`);
-                  console.warn(`[DashboardData]   Type of normalizedCommentId: ${typeof normalizedCommentId}, Length: ${normalizedCommentId.length}`);
-                  if (sessionMapKeys.length > 0) {
-                    const firstKey = sessionMapKeys[0];
-                    console.warn(`[DashboardData]   First key type: ${typeof firstKey}, Length: ${firstKey.length}, Equal?: ${normalizedCommentId === firstKey}`);
-                  }
-                }
-              }
+              const sessions = sessionMap.get(normalizedCommentId) || [];
 
+              // Calculate longest uptime
               let longestUptime = '0s';
               if (sessions.length > 0) {
-                const uptimes = sessions.map((s) => {
-                  const uptimeStr = s.uptime || '0s';
-                  return formatter.parseUptimeToSeconds(uptimeStr);
-                }).filter(s => !isNaN(s) && s >= 0);
+                const uptimes = sessions
+                  .map((s) => formatter.parseUptimeToSeconds(s.uptime || '0s'))
+                  .filter(s => !isNaN(s) && s >= 0);
                 if (uptimes.length > 0) {
-                  const maxSeconds = Math.max(...uptimes);
-                  longestUptime = formatter.formatUptime(maxSeconds);
+                  longestUptime = formatter.formatUptime(Math.max(...uptimes));
                 }
               }
 
               return {
                 id: user.id,
                 username: user.username,
-                commentId: commentId || '-',
+                commentId: commentId,
                 status: sessions.length > 0 ? 'online' : 'offline',
                 activeDevices: sessions.length,
                 sessions,
