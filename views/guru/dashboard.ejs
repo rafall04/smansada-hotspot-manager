@@ -603,12 +603,18 @@
                             `;
                         }
                         
-                        // Load first page data
-                        updateSessionsTable(data, 1);
+                        // Load first page data - ensure we only use paginated sessions (max 10 per page)
+                        // Backend already returns paginated data, but we add extra safety here
+                        const paginatedData = {
+                            ...data,
+                            activeSessions: data.activeSessions ? data.activeSessions.slice(0, 10) : []
+                        };
+                        
+                        updateSessionsTable(paginatedData, 1);
                         
                         // Cache first page
                         sessionsLoadedPages.add(1);
-                        sessionsPageDataCache.set(1, data);
+                        sessionsPageDataCache.set(1, paginatedData);
                         
                         // Re-attach kick session event listeners
                         attachKickSessionListeners();
@@ -724,8 +730,11 @@
                         const tableBody = document.getElementById(`sessionsTableBody-${page}`);
                         if (!tableBody) return;
 
-                        if (data.activeSessions && data.activeSessions.length > 0) {
-                            tableBody.innerHTML = data.activeSessions.map((session, index) => {
+                        // Ensure we only display max 10 sessions per page (extra safety)
+                        const sessionsToDisplay = data.activeSessions ? data.activeSessions.slice(0, 10) : [];
+
+                        if (sessionsToDisplay.length > 0) {
+                            tableBody.innerHTML = sessionsToDisplay.map((session, index) => {
                                 const globalIndex = (page - 1) * 10 + index + 1;
                                 const hostname = session.hostname && session.hostname !== 'N/A' && session.hostname !== null
                                     ? `<span class="badge bg-info-subtle text-info">

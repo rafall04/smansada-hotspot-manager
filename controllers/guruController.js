@@ -606,10 +606,16 @@ class GuruController {
         error = 'Gagal terhubung ke Mikrotik: ' + mikrotikError.message;
       }
 
-      // Paginate active sessions
+      // Paginate active sessions - CRITICAL: Only return 10 sessions per page
       const totalSessions = allActiveSessions.length;
       const totalPages = Math.ceil(totalSessions / limit);
       const paginatedSessions = allActiveSessions.slice(skip, skip + limit);
+      
+      // Ensure we never return more than limit (10) sessions
+      if (paginatedSessions.length > limit) {
+        console.warn(`[GuruDashboardData] WARNING: Paginated sessions (${paginatedSessions.length}) exceeds limit (${limit}). Truncating.`);
+        paginatedSessions.splice(limit);
+      }
 
       const settings = Settings.get();
       const hotspotDnsName = settings.hotspot_dns_name || settings.router_ip || '192.168.88.1';
