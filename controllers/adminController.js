@@ -1850,9 +1850,13 @@ class AdminController {
           const usernameToCommentMap = new Map();
 
           // Helper function to normalize comment ID for case-insensitive comparison
-          // Handles case differences and whitespace (Linux is case-sensitive, Windows is not)
+          // Handles case differences, whitespace, and null/undefined (Linux is case-sensitive, Windows is not)
           const normalizeCommentId = (comment) => {
-            if (!comment || typeof comment !== 'string') return '';
+            if (!comment) return '';
+            if (typeof comment !== 'string') {
+              // Handle non-string values (numbers, objects, etc.)
+              return String(comment).trim().toLowerCase();
+            }
             // Trim whitespace and convert to lowercase for case-insensitive comparison
             // This ensures "NIP123", "nip123", "NIP 123" all match correctly on Linux
             return comment.trim().toLowerCase();
@@ -1862,28 +1866,55 @@ class AdminController {
             ...new Set(allActiveSessions.map((s) => s.user).filter(Boolean))
           ].slice(0, 50);
 
+          console.log(`[DashboardData] Found ${uniqueUsernames.length} unique usernames in active sessions`);
+
           const userFetchPromises = uniqueUsernames.map(async (username) => {
             try {
               const hotspotUser = await Promise.race([
                 MikrotikService.getHotspotUserByUsername(username),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
               ]);
-              if (hotspotUser && hotspotUser.comment) {
+              if (hotspotUser) {
+                // Explicitly convert comment to string - Mikrotik API might return different types
+                let comment = hotspotUser.comment;
+                
+                // Handle null/undefined
+                if (comment === null || comment === undefined) {
+                  console.warn(`[DashboardData] Username "${username}" has null/undefined comment in Mikrotik`);
+                  return;
+                }
+                
+                // Convert to string explicitly (handles Buffer, number, etc.)
+                comment = String(comment);
+                
                 // Store both original and normalized for lookup
-                const normalizedComment = normalizeCommentId(hotspotUser.comment);
-                usernameToCommentMap.set(username, {
-                  original: hotspotUser.comment.trim(),
-                  normalized: normalizedComment
-                });
+                const originalComment = comment.trim();
+                const normalizedComment = normalizeCommentId(originalComment);
+                
+                if (normalizedComment) {
+                  usernameToCommentMap.set(username, {
+                    original: originalComment,
+                    normalized: normalizedComment
+                  });
+                  console.log(`[DashboardData] Mapped username "${username}" -> comment "${originalComment}" (normalized: "${normalizedComment}")`);
+                } else {
+                  console.warn(`[DashboardData] Skipping username "${username}" - empty normalized comment (original: "${originalComment}")`);
+                }
+              } else {
+                console.warn(`[DashboardData] Username "${username}" not found in Mikrotik`);
               }
             } catch (error) {
               if (error.message !== 'Timeout') {
                 console.error(`[DashboardData] Error fetching user ${username}:`, error.message);
+              } else {
+                console.warn(`[DashboardData] Timeout fetching user ${username}`);
               }
             }
           });
 
           await Promise.allSettled(userFetchPromises);
+
+          console.log(`[DashboardData] Built usernameToCommentMap with ${usernameToCommentMap.size} entries`);
 
           for (const session of allActiveSessions) {
             const username = session.user || '';
@@ -1893,6 +1924,10 @@ class AdminController {
 
             const commentData = usernameToCommentMap.get(username);
             if (!commentData || !commentData.normalized) {
+              // Log missing mappings for debugging
+              if (usernameToCommentMap.size > 0) {
+                console.warn(`[DashboardData] No comment mapping found for username "${username}"`);
+              }
               continue;
             }
 
@@ -1915,12 +1950,54 @@ class AdminController {
             });
           }
 
+          console.log(`[DashboardData] Built sessionMap with ${sessionMap.size} comment IDs`);
+          console.log(`[DashboardData] SessionMap keys:`, Array.from(sessionMap.keys()));
+
           usersWithSessions = allUsers.map((user) => {
             try {
-              const commentId = user.mikrotik_comment_id;
+              // Explicitly convert to string - SQLite might return different types on Linux vs Windows
+              let commentId = user.mikrotik_comment_id;
+              
+              // Handle null/undefined comment IDs
+              if (commentId === null || commentId === undefined) {
+                console.warn(`[DashboardData] User ${user.id} (${user.username}) has no mikrotik_comment_id`);
+                return {
+                  id: user.id,
+                  username: user.username,
+                  commentId: '-',
+                  status: 'offline',
+                  activeDevices: 0,
+                  sessions: [],
+                  uptime: '0s'
+                };
+              }
+              
+              // Convert to string explicitly (handles Buffer, number, etc. that might differ between platforms)
+              commentId = String(commentId);
+              
               // Normalize database comment ID for case-insensitive matching
               const normalizedCommentId = normalizeCommentId(commentId);
-              const sessions = sessionMap.get(normalizedCommentId) || [];
+              
+              // Debug: Log the exact values being compared
+              const sessionMapKeys = Array.from(sessionMap.keys());
+              const hasMatch = sessionMap.has(normalizedCommentId);
+              
+              const sessions = hasMatch ? sessionMap.get(normalizedCommentId) : [];
+              
+              if (sessions.length > 0) {
+                console.log(`[DashboardData] ✓ User ${user.id} (${user.username}) - commentId: "${commentId}" (normalized: "${normalizedCommentId}") - FOUND ${sessions.length} sessions`);
+              } else {
+                // Only log if we have sessions in the map (to avoid spam)
+                if (sessionMap.size > 0) {
+                  console.warn(`[DashboardData] ✗ User ${user.id} (${user.username}) - commentId: "${commentId}" (normalized: "${normalizedCommentId}") - NO MATCH`);
+                  console.warn(`[DashboardData]   Available keys in sessionMap: [${sessionMapKeys.map(k => `"${k}"`).join(', ')}]`);
+                  console.warn(`[DashboardData]   Type of normalizedCommentId: ${typeof normalizedCommentId}, Length: ${normalizedCommentId.length}`);
+                  if (sessionMapKeys.length > 0) {
+                    const firstKey = sessionMapKeys[0];
+                    console.warn(`[DashboardData]   First key type: ${typeof firstKey}, Length: ${firstKey.length}, Equal?: ${normalizedCommentId === firstKey}`);
+                  }
+                }
+              }
 
               let longestUptime = '0s';
               if (sessions.length > 0) {
