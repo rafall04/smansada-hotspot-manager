@@ -1608,55 +1608,100 @@ class AdminController {
   }
 
   static async getActiveDevicesApi(req, res) {
+    if (res.headersSent) return;
+
     try {
-      const allSessions = await MikrotikService.getDetailedActiveSessions();
-
-      const allUsers = User.findAll().filter((u) => u.role === 'guru');
-      const commentIdSet = new Set(allUsers.map((u) => u.mikrotik_comment_id).filter(Boolean));
-
-      const usernameToCommentMap = new Map();
-      const uniqueUsernames = [
-        ...new Set(allSessions.map((s) => s.user).filter(Boolean))
-      ];
-
-      for (const username of uniqueUsernames) {
-        try {
-          const hotspotUser = await MikrotikService.getHotspotUserByUsername(username);
-          if (hotspotUser && hotspotUser.comment) {
-            usernameToCommentMap.set(username, hotspotUser.comment);
-          }
-        } catch (error) {
-          console.error(`Error fetching user ${username}:`, error);
+      // Get optional comment ID filter from query
+      const filterCommentId = req.query.commentId ? String(req.query.commentId).trim() : null;
+      
+      // Helper to normalize comment ID (same as dashboard)
+      const normalizeCommentId = (comment) => {
+        if (!comment) return '';
+        if (typeof comment !== 'string') {
+          return String(comment).trim().toLowerCase();
         }
+        return comment.trim().toLowerCase();
+      };
+
+      // Step 1: Batch fetch all hotspot users once (much faster than individual fetches)
+      const usernameToCommentMap = new Map(); // username -> normalized comment
+      
+      try {
+        const allHotspotUsers = await Promise.race([
+          MikrotikService.getAllHotspotUsers(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+        ]);
+
+        // Build mapping: username -> normalized comment
+        for (const user of allHotspotUsers) {
+          if (!user.name || !user.comment) continue;
+          
+          const username = String(user.name);
+          const comment = String(user.comment).trim();
+          const normalizedComment = normalizeCommentId(comment);
+          
+          if (normalizedComment) {
+            usernameToCommentMap.set(username, normalizedComment);
+          }
+        }
+      } catch (error) {
+        console.error(`[ActiveDevices] Error fetching hotspot users:`, error.message);
       }
 
-      const filteredSessions = allSessions
-        .filter((session) => {
-          const commentId = usernameToCommentMap.get(session.user);
-          return commentId && commentIdSet.has(commentId);
-        })
-        .map((session) => {
-          const commentId = usernameToCommentMap.get(session.user) || null;
-          const uptimeSeconds = formatter.parseUptimeToSeconds(session.uptime);
-          const formattedUptime = formatter.formatUptime(uptimeSeconds);
-          const bytesIn = session['bytes-in'] || '0';
-          const bytesOut = session['bytes-out'] || '0';
+      // Step 2: Get active sessions
+      const allSessions = await MikrotikService.getDetailedActiveSessions();
 
-          return {
-            user: session.user,
-            ip: session.ip,
-            hostname: session.hostname,
-            mac: session.mac,
-            uptime: session.uptime,
-            formattedUptime,
-            commentId,
-            sessionId: session.sessionId,
-            'bytes-in': bytesIn,
-            'bytes-out': bytesOut,
-            'bytes-in-formatted': formatter.formatBytes(bytesIn),
-            'bytes-out-formatted': formatter.formatBytes(bytesOut)
-          };
+      // Step 3: Filter sessions by comment ID (if provided) or all guru users
+      let targetCommentIds = null;
+      if (filterCommentId) {
+        // Filter by specific comment ID
+        const normalizedFilterId = normalizeCommentId(filterCommentId);
+        targetCommentIds = new Set([normalizedFilterId]);
+      } else {
+        // Filter by all guru comment IDs
+        const allUsers = User.findAll().filter((u) => u.role === 'guru');
+        targetCommentIds = new Set(
+          allUsers
+            .map((u) => u.mikrotik_comment_id)
+            .filter(Boolean)
+            .map((id) => normalizeCommentId(String(id)))
+        );
+      }
+
+      // Step 4: Map sessions to comment IDs and filter
+      const filteredSessions = [];
+      for (const session of allSessions) {
+        const username = session.user || '';
+        if (!username) continue;
+
+        const normalizedComment = usernameToCommentMap.get(username);
+        if (!normalizedComment || !targetCommentIds.has(normalizedComment)) {
+          continue;
+        }
+
+        // Format session data
+        const uptimeSeconds = formatter.parseUptimeToSeconds(session.uptime || '0s');
+        const formattedUptime = formatter.formatUptime(uptimeSeconds);
+        const bytesIn = session['bytes-in'] || '0';
+        const bytesOut = session['bytes-out'] || '0';
+
+        filteredSessions.push({
+          user: session.user,
+          ip: session.ip,
+          hostname: session.hostname,
+          mac: session.mac,
+          uptime: session.uptime,
+          formattedUptime,
+          commentId: normalizedComment,
+          sessionId: session.sessionId,
+          'bytes-in': bytesIn,
+          'bytes-out': bytesOut,
+          'bytes-in-formatted': formatter.formatBytes(bytesIn),
+          'bytes-out-formatted': formatter.formatBytes(bytesOut)
         });
+      }
+
+      if (res.headersSent) return;
 
       return res.json({
         success: true,
@@ -1664,7 +1709,9 @@ class AdminController {
         total: filteredSessions.length
       });
     } catch (error) {
-      console.error('Error getting active devices:', error);
+      if (res.headersSent) return;
+      
+      console.error('[ActiveDevices] Error:', error);
       return res.status(500).json({
         success: false,
         message: 'Gagal memuat data perangkat aktif: ' + error.message,

@@ -833,7 +833,11 @@
         sessionTableBody.innerHTML = '';
 
         try {
-          const response = await fetch('/admin/api/live-devices');
+          // Get comment ID from clicked link
+          const commentId = clickedLink.getAttribute('data-comment-id');
+          const url = commentId ? `/admin/api/live-devices?commentId=${encodeURIComponent(commentId)}` : '/admin/api/live-devices';
+          
+          const response = await fetch(url);
           const data = await response.json();
 
           sessionTableLoading.style.display = 'none';
